@@ -16,11 +16,11 @@ A blazingly fast, single-binary replacement for [Live Server](https://marketplac
 
 Live Server (ritwickdey) hasn't been maintained since 2021 (900+ open issues). It has critical bugs — HTTPS relative path crashes, can't read JSONC comments in `settings.json`, and requires the entire Node.js runtime.
 
-Hotplate fixes all of this with a single ~5MB binary:
+Hotplate fixes all of this with a single ~7MB binary:
 
 | Metric | Live Server (JS) | Vite | 🔥 Hotplate |
 |--------|------------------|------|-------------|
-| Binary size | ~50MB (Node.js) | ~80MB (Node.js) | **~5MB** |
+| Binary size | ~50MB (Node.js) | ~80MB (Node.js) | **~7MB** |
 | Startup time | ~800ms | ~300ms | **~10ms** |
 | Memory (idle) | ~40MB | ~50MB | **~3MB** |
 | HTTPS | ⚠️ Buggy | ✅ | **✅ rustls** |

@@ -10,7 +10,7 @@ Zero config. HTTPS out of the box. LAN access for mobile testing.
 
 | Feature | Description |
 |---------|------------|
-| ⚡ **Blazing Fast** | Rust binary — starts in <50ms, ~5MB |
+| ⚡ **Blazing Fast** | Rust binary — starts in <50ms, ~7MB |
 | 🔒 **HTTPS** | Built-in rustls — no OpenSSL needed |
 | 🔄 **Live Reload** | OS-native file watcher, WebSocket push |
 | 🌐 **LAN Access** | Auto-detects local IP, works on mobile |

@@ -19,7 +19,7 @@ Những gì đã hoàn thành trong v0.1.0:
 - [x] Ignore filter (.git, node_modules, __pycache__, .pyc)
 - [x] CLI interface (clap): --host, --port, --root, --cert, --key, --workspace
 - [x] LAN IP auto-detect (hiển thị Network URL trong banner)
-- [x] Single binary ~5MB, zero runtime dependency
+- [x] Single binary ~7MB, zero runtime dependency
 
 ---
 
@@ -194,7 +194,7 @@ Mở rộng thành hệ sinh thái cho cộng đồng:
 | Feature | Live Server (cũ) | Vite | Our Rust Server |
 |---------|------------------|------|-----------------|
 | Language | JavaScript | JavaScript | Rust |
-| Binary size | ~50MB (Node) | ~80MB (Node) | ~5MB |
+| Binary size | ~50MB (Node) | ~80MB (Node) | ~7MB |
 | Startup | ~800ms | ~300ms | ~10ms |
 | HTTPS | ✅ (buggy) | ✅ | ✅ (rustls) |
 | HMR | ❌ | ✅ (JS only) | Phase 2 (CSS) |
