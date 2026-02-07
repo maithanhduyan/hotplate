@@ -100,6 +100,14 @@ fn build_router(state: Arc<AppState>, config: &Config) -> Router {
             .route(&proxy_path_exact, axum::routing::any(proxy_handler));
     }
 
+    // Mount extra directories at specific URL paths
+    // e.g. --mount "/node_modules:./node_modules" serves ./node_modules at /node_modules
+    for (url_path, fs_path) in &config.mounts {
+        let mount_service = ServeDir::new(fs_path).append_index_html_on_directories(true);
+        // nest_service strips the prefix before passing to ServeDir
+        app = app.nest_service(url_path, mount_service);
+    }
+
     // Static file serving with optional SPA fallback
     let serve_dir = if let Some(ref spa_file) = config.spa_file {
         ServeDir::new(&config.root)
@@ -266,6 +274,11 @@ fn print_banner(config: &Config) {
     println!("  🔄 Reload:  {}", reload_mode);
     if let (Some(ref base), Some(ref target)) = (&config.proxy_base, &config.proxy_target) {
         println!("  🔀 Proxy:   {} → {}", base, target);
+    }
+    if !config.mounts.is_empty() {
+        for (url_path, fs_path) in &config.mounts {
+            println!("  📁 Mount:   {} → {}", url_path, fs_path.display());
+        }
     }
     if let Some(ref file) = config.spa_file {
         println!("  📄 SPA:     {} (fallback)", file);

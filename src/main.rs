@@ -70,6 +70,10 @@ struct Cli {
     /// Custom response header (can be repeated, format: "Key: Value")
     #[arg(long = "header")]
     headers: Vec<String>,
+
+    /// Mount an extra directory at a URL path (can be repeated, format: "/url_path:./fs_path")
+    #[arg(long = "mount")]
+    mounts: Vec<String>,
 }
 
 // ───────────────────── Config ─────────────────────
@@ -89,6 +93,7 @@ pub struct Config {
     pub proxy_base: Option<String>,
     pub proxy_target: Option<String>,
     pub headers: Vec<(String, String)>,
+    pub mounts: Vec<(String, PathBuf)>,
 }
 
 // ───────────────────── VS Code settings.json ─────────────────────
@@ -105,13 +110,13 @@ struct VsCodeHttps {
 #[derive(Debug, Deserialize, Default)]
 #[allow(dead_code)]
 struct VsCodeSettings {
-    #[serde(rename = "liveServer.settings.host")]
+    #[serde(rename = "hotplate.host")]
     host: Option<String>,
-    #[serde(rename = "liveServer.settings.port")]
+    #[serde(rename = "hotplate.port")]
     port: Option<u16>,
-    #[serde(rename = "liveServer.settings.root")]
+    #[serde(rename = "hotplate.root")]
     root: Option<String>,
-    #[serde(rename = "liveServer.settings.https")]
+    #[serde(rename = "hotplate.https")]
     https: Option<VsCodeHttps>,
 }
 
@@ -281,6 +286,8 @@ fn build_config(cli: Cli) -> Result<Config> {
     }
     anyhow::ensure!(root.exists(), "Root directory not found: {}", root.display());
 
+    let mounts = parse_mounts(&cli.mounts, &workspace);
+
     Ok(Config {
         host,
         port,
@@ -295,6 +302,7 @@ fn build_config(cli: Cli) -> Result<Config> {
         proxy_base: cli.proxy_base,
         proxy_target: cli.proxy_target,
         headers: parse_headers(&cli.headers),
+        mounts,
     })
 }
 
@@ -310,6 +318,33 @@ fn parse_headers(raw: &[String]) -> Vec<(String, String)> {
             } else {
                 Some((key, value))
             }
+        })
+        .collect()
+}
+
+/// Parse "/url_path:./fs_path" strings into (url_path, resolved_fs_path) tuples.
+fn parse_mounts(raw: &[String], workspace: &Path) -> Vec<(String, PathBuf)> {
+    raw.iter()
+        .filter_map(|m| {
+            let mut parts = m.splitn(2, ':');
+            let url_path = parts.next()?.trim().to_string();
+            let fs_path_str = parts.next()?.trim().to_string();
+            if url_path.is_empty() || fs_path_str.is_empty() {
+                eprintln!("  ⚠ Invalid mount: {}", m);
+                return None;
+            }
+            // Ensure url_path starts with /
+            let url_path = if url_path.starts_with('/') {
+                url_path
+            } else {
+                format!("/{}", url_path)
+            };
+            let fs_path = resolve_path(workspace, &fs_path_str);
+            if !fs_path.exists() {
+                eprintln!("  ⚠ Mount path does not exist: {} → {}", url_path, fs_path.display());
+                // Still allow it — directory might be created later
+            }
+            Some((url_path, fs_path))
         })
         .collect()
 }

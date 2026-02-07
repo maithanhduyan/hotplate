@@ -211,6 +211,17 @@ function buildArgs(workspacePath, folderRoot) {
         }
     }
 
+    // Mount directories
+    const mounts = config.get('mount', []);
+    if (Array.isArray(mounts)) {
+        for (const entry of mounts) {
+            if (Array.isArray(entry) && entry.length === 2) {
+                const [urlPath, fsPath] = entry;
+                args.push('--mount', `${urlPath}:${fsPath}`);
+            }
+        }
+    }
+
     return args;
 }
 

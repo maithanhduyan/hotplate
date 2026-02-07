@@ -17,6 +17,7 @@
   "engines": {
     "vscode": "^1.85.0"
   },
+  "icon": "images/icon.png",
   "categories": [
     "Other",
     "Testing",
@@ -222,6 +223,19 @@
           "type": "object",
           "default": {},
           "description": "Custom HTTP response headers. Example: { \"X-Custom-Header\": \"value\", \"Cache-Control\": \"no-cache\" }"
+        },
+        "hotplate.mount": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 2,
+            "items": {
+              "type": "string"
+            }
+          },
+          "markdownDescription": "Mount additional directories at specific URL paths. Each entry is `[urlPath, fsPath]`.\n\nExample:\n```json\n[\n  [\"/node_modules\", \"./node_modules\"],\n  [\"/assets\", \"../shared/assets\"]\n]\n```"
         },
         "hotplate.multiRootWorkspaceName": {
           "type": ["string", "null"],

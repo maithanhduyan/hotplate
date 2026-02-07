@@ -1,0 +1,96 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="256" y2="256" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#1a1a2e"/>
+      <stop offset="100%" stop-color="#16213e"/>
+    </linearGradient>
+    <linearGradient id="flame-outer" x1="128" y1="180" x2="128" y2="40" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#ff6b35"/>
+      <stop offset="50%" stop-color="#ff8c42"/>
+      <stop offset="100%" stop-color="#ffba08"/>
+    </linearGradient>
+    <linearGradient id="flame-inner" x1="128" y1="170" x2="128" y2="80" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#ff4500"/>
+      <stop offset="100%" stop-color="#ffba08"/>
+    </linearGradient>
+    <linearGradient id="plate" x1="60" y1="190" x2="196" y2="210" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#4a4a6a"/>
+      <stop offset="50%" stop-color="#6c6c8e"/>
+      <stop offset="100%" stop-color="#4a4a6a"/>
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Background rounded square -->
+  <rect width="256" height="256" rx="48" ry="48" fill="url(#bg)"/>
+
+  <!-- Hotplate base (plate) -->
+  <ellipse cx="128" cy="198" rx="72" ry="14" fill="url(#plate)" opacity="0.9"/>
+  <rect x="56" y="190" width="144" height="16" rx="4" fill="url(#plate)" opacity="0.8"/>
+  <!-- Plate top rim highlight -->
+  <ellipse cx="128" cy="190" rx="68" ry="10" fill="none" stroke="#8888aa" stroke-width="1.5" opacity="0.6"/>
+  <!-- Plate grill lines -->
+  <line x1="80" y1="194" x2="176" y2="194" stroke="#333355" stroke-width="1.5" stroke-linecap="round" opacity="0.5"/>
+  <line x1="76" y1="198" x2="180" y2="198" stroke="#333355" stroke-width="1.5" stroke-linecap="round" opacity="0.5"/>
+  <line x1="80" y1="202" x2="176" y2="202" stroke="#333355" stroke-width="1.5" stroke-linecap="round" opacity="0.5"/>
+
+  <!-- Outer flame (large) -->
+  <path d="
+    M 128 48
+    C 128 48, 168 90, 172 125
+    C 176 155, 162 182, 128 186
+    C 94 182, 80 155, 84 125
+    C 88 90, 128 48, 128 48
+    Z
+  " fill="url(#flame-outer)" filter="url(#glow)" opacity="0.95"/>
+
+  <!-- Middle flame -->
+  <path d="
+    M 128 68
+    C 128 68, 156 100, 158 128
+    C 160 152, 150 174, 128 178
+    C 106 174, 96 152, 98 128
+    C 100 100, 128 68, 128 68
+    Z
+  " fill="url(#flame-inner)" opacity="0.9"/>
+
+  <!-- Inner flame (bright core) -->
+  <path d="
+    M 128 100
+    C 128 100, 146 118, 146 138
+    C 146 155, 140 168, 128 170
+    C 116 168, 110 155, 110 138
+    C 110 118, 128 100, 128 100
+    Z
+  " fill="#ffe066" opacity="0.85"/>
+
+  <!-- Tiny bright center -->
+  <ellipse cx="128" cy="152" rx="8" ry="12" fill="#fff8dc" opacity="0.7"/>
+
+  <!-- Subtle heat shimmer lines above flame -->
+  <path d="M 108 42 Q 112 36, 116 42" stroke="#ffba08" stroke-width="2" fill="none" opacity="0.4" stroke-linecap="round"/>
+  <path d="M 136 38 Q 140 30, 144 38" stroke="#ffba08" stroke-width="2" fill="none" opacity="0.3" stroke-linecap="round"/>
+
+  <!-- Small "speed" accent lines on sides -->
+  <line x1="62" y1="140" x2="52" y2="140" stroke="#ff8c42" stroke-width="2.5" stroke-linecap="round" opacity="0.5"/>
+  <line x1="58" y1="152" x2="46" y2="155" stroke="#ff8c42" stroke-width="2" stroke-linecap="round" opacity="0.35"/>
+  <line x1="194" y1="140" x2="204" y2="140" stroke="#ff8c42" stroke-width="2.5" stroke-linecap="round" opacity="0.5"/>
+  <line x1="198" y1="152" x2="210" y2="155" stroke="#ff8c42" stroke-width="2" stroke-linecap="round" opacity="0.35"/>
+
+  <!-- "⚡" bolt in the flame core -->
+  <path d="
+    M 132 118
+    L 124 142
+    L 132 140
+    L 126 162
+    L 138 134
+    L 130 136
+    Z
+  " fill="#fff" opacity="0.8"/>
+</svg>
