@@ -1,0 +1,9 @@
+.gitignore
+.github/
+*.md
+!README.md
+node_modules/
+src/
+tests/
+.vscode/
+*.vsix

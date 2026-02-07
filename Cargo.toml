@@ -1,0 +1,39 @@
+[package]
+name = "hotplate"
+version = "0.1.0"
+edition = "2021"
+description = "⚡ Fast HTTPS live-reload development server written in Rust"
+
+[dependencies]
+# Web framework
+axum = { version = "0.7", features = ["ws"] }
+axum-server = { version = "0.8", features = ["tls-rustls"] }
+tokio = { version = "1", features = ["full"] }
+tower = "0.4"
+tower-http = { version = "0.5", features = ["fs", "cors", "set-header"] }
+
+# File watching
+notify = "6"
+globset = "0.4"
+
+# CLI
+clap = { version = "4", features = ["derive"] }
+
+# Config
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Proxy
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls-webpki-roots"] }
+
+# TLS crypto provider (needed for rustls process-level default)
+rustls = { version = "0.23", default-features = false, features = ["ring"] }
+
+# Utils
+anyhow = "1"
+http-body-util = "0.1"
+
+[profile.release]
+opt-level = 3
+lto = true
+strip = true

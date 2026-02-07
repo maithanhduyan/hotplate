@@ -1,0 +1,61 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Build Hotplate",
+            "type": "shell",
+            "command": "cargo",
+            "args": [
+                "build",
+                "--release"
+            ]
+        },
+        {
+            "label": "Build Extension",
+            "type": "shell",
+            "command": "vsce package --skip-license",
+            "options": {
+                "cwd": "${workspaceFolder}/vscode-extension"
+            },
+            "dependsOn": "Copy Hotplate to Extension",
+            "problemMatcher": []
+        },
+        {
+            "label": "Copy Hotplate to Extension",
+            "type": "shell",
+            "command": "copy",
+            "args": [
+                "${workspaceFolder}\\target\\release\\hotplate.exe",
+                "${workspaceFolder}\\vscode-extension\\bin\\"
+            ],
+            "dependsOn": "Build Hotplate",
+            "problemMatcher": []
+        },
+        {
+            "label": "Check Extension",
+            "type": "shell",
+            "command": "node",
+            "windows": {
+                "command": "powershell",
+                "args": [
+                    "-Command",
+                    "node --check '${workspaceFolder}\\vscode-extension\\extension.js'; if ($LASTEXITCODE -eq 0) { Write-Host '✅ extension.js syntax OK' }"
+                ]
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Check package.json",
+            "type": "shell",
+            "options": {
+                "shell": {
+                    "executable": "cmd.exe",
+                    "args": ["/C"]
+                }
+            },
+            "command": "node -e \"var p=require('./vscode-extension/package.json'); if(!p.name||!p.version){console.error('Invalid');process.exit(1)} console.log('✅ package.json syntax OK')\"",
+            "problemMatcher": []
+        },
+
+    ]
+}

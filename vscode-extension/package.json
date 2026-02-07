@@ -1,0 +1,255 @@
+{
+  "name": "hotplate",
+  "displayName": "Hotplate — Live Server",
+  "description": "⚡ Fast HTTPS live-reload dev server powered by Rust. Hot reload, zero config, LAN access with QR code.",
+  "version": "0.1.0",
+  "publisher": "maithanhduyan",
+  "author": {
+    "name": "Mai Thành Duy An",
+    "email": "tiachop0102@gmail.com",
+    "url": "https://x.com/maithanhduyan"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/maithanhduyan/hotplate"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other",
+    "Testing",
+    "Themes"
+  ],
+  "keywords": [
+    "live server",
+    "live reload",
+    "https",
+    "hot reload",
+    "static server",
+    "dev server",
+    "rust"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "hotplate.start",
+        "title": "Start Server",
+        "category": "Hotplate",
+        "icon": "$(flame)"
+      },
+      {
+        "command": "hotplate.stop",
+        "title": "Stop Server",
+        "category": "Hotplate",
+        "icon": "$(debug-stop)"
+      },
+      {
+        "command": "hotplate.restart",
+        "title": "Restart Server",
+        "category": "Hotplate",
+        "icon": "$(debug-restart)"
+      },
+      {
+        "command": "hotplate.openBrowser",
+        "title": "Open in Browser",
+        "category": "Hotplate",
+        "icon": "$(globe)"
+      },
+      {
+        "command": "hotplate.openFile",
+        "title": "Open with Hotplate",
+        "category": "Hotplate",
+        "icon": "$(flame)"
+      },
+      {
+        "command": "hotplate.changeWorkspace",
+        "title": "Change Workspace",
+        "category": "Hotplate",
+        "icon": "$(folder-opened)"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "hotplate.openFile",
+          "group": "hotplate@1",
+          "when": "resourceLangId == html"
+        },
+        {
+          "command": "hotplate.openFile",
+          "group": "hotplate@1",
+          "when": "resourceLangId == xml"
+        },
+        {
+          "command": "hotplate.stop",
+          "group": "hotplate@2",
+          "when": "hotplate:running"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "hotplate.openFile",
+          "group": "navigation@-Hotplate",
+          "when": "resourceLangId == html"
+        },
+        {
+          "command": "hotplate.openFile",
+          "group": "navigation@-Hotplate",
+          "when": "resourceLangId == xml"
+        },
+        {
+          "command": "hotplate.start",
+          "when": "explorerResourceIsFolder",
+          "group": "hotplate@1"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "hotplate.changeWorkspace",
+          "when": "workspaceFolderCount > 1"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "hotplate.openBrowser",
+          "when": "hotplate:running",
+          "group": "navigation"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Hotplate",
+      "properties": {
+        "hotplate.port": {
+          "type": "number",
+          "default": 5500,
+          "description": "Port number for the dev server."
+        },
+        "hotplate.root": {
+          "type": "string",
+          "default": "",
+          "description": "Root directory to serve (relative to workspace). Empty = workspace root."
+        },
+        "hotplate.host": {
+          "type": "string",
+          "default": "0.0.0.0",
+          "description": "Bind host. Use 0.0.0.0 for LAN access, 127.0.0.1 for localhost only."
+        },
+        "hotplate.https.cert": {
+          "type": "string",
+          "default": "",
+          "description": "Path to TLS certificate file (PEM). Relative to workspace."
+        },
+        "hotplate.https.key": {
+          "type": "string",
+          "default": "",
+          "description": "Path to TLS private key file (PEM). Relative to workspace."
+        },
+        "hotplate.liveReload": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable live reload on file changes."
+        },
+        "hotplate.fullReload": {
+          "type": "boolean",
+          "default": false,
+          "description": "When false (default), CSS changes are injected without a full page reload. Set to true to always do a full page reload on any file change."
+        },
+        "hotplate.openBrowser": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically open browser when server starts."
+        },
+        "hotplate.showOnStatusbar": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show the Go Live button in the status bar."
+        },
+        "hotplate.ignoreFiles": {
+          "type": "array",
+          "default": [
+            ".vscode/**",
+            "**/*.scss",
+            "**/*.sass",
+            "**/*.ts"
+          ],
+          "description": "Glob patterns for files to ignore during live reload."
+        },
+        "hotplate.file": {
+          "type": "string",
+          "default": "",
+          "description": "Serve this file for every 404 (useful for single-page applications)."
+        },
+        "hotplate.proxy": {
+          "type": "object",
+          "default": {
+            "enable": false,
+            "baseUri": "/api",
+            "proxyUri": "http://127.0.0.1:8000"
+          },
+          "properties": {
+            "enable": {
+              "type": "boolean",
+              "default": false,
+              "description": "Enable proxy forwarding."
+            },
+            "baseUri": {
+              "type": "string",
+              "default": "/api",
+              "description": "Base URI path to intercept (e.g. /api)."
+            },
+            "proxyUri": {
+              "type": "string",
+              "default": "http://127.0.0.1:8000",
+              "description": "Target URL to forward requests to."
+            }
+          },
+          "additionalProperties": false,
+          "description": "Proxy setup — forward matching requests to another server."
+        },
+        "hotplate.wait": {
+          "type": "number",
+          "default": 150,
+          "description": "Debounce delay before live reloading (milliseconds)."
+        },
+        "hotplate.headers": {
+          "type": "object",
+          "default": {},
+          "description": "Custom HTTP response headers. Example: { \"X-Custom-Header\": \"value\", \"Cache-Control\": \"no-cache\" }"
+        },
+        "hotplate.multiRootWorkspaceName": {
+          "type": ["string", "null"],
+          "default": null,
+          "description": "In a multi-root workspace, set the workspace folder name to use as the Live Server root. If not set, a picker will appear."
+        }
+      }
+    },
+    "keybindings": [
+      {
+        "command": "hotplate.start",
+        "key": "alt+l alt+o",
+        "mac": "cmd+l cmd+o",
+        "when": "editorTextFocus && !hotplate:running"
+      },
+      {
+        "command": "hotplate.stop",
+        "key": "alt+l alt+c",
+        "mac": "cmd+l cmd+c",
+        "when": "editorTextFocus && hotplate:running"
+      }
+    ]
+  },
+  "scripts": {
+    "package": "vsce package",
+    "publish": "vsce publish"
+  },
+  "devDependencies": {
+    "@vscode/vsce": "^2.32.0"
+  }
+}
