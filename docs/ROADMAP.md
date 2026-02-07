@@ -183,8 +183,8 @@ Mở rộng thành hệ sinh thái cho cộng đồng:
 - [ ] **Plugin system** — Rust trait-based plugins (WASM hoặc dynamic loading)
 - [ ] **Neovim integration** — `:LiveServer start` command
 - [ ] **Zed extension** — Native integration với Zed editor
-- [ ] **GitHub Action** — `uses: yakiniku/liveserver@v1` cho CI preview deploy
-- [ ] **Docker image** — `FROM ghcr.io/yakiniku/liveserver:latest`
+- [ ] **GitHub Action** — `uses: maithanhduyan/hotplate@v1` cho CI preview deploy
+- [ ] **Docker image** — `FROM ghcr.io/maithanhduyan/hotplate:latest`
 - [ ] **Cross-platform binaries** — pre-built cho Windows/Linux/macOS (x64 + ARM64)
 - [ ] **Config file** — `liveserver.toml` ngoài `.vscode/settings.json`
 - [ ] **Middleware API** — cho phép viết custom middleware bằng Lua/WASM
