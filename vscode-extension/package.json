@@ -2,7 +2,7 @@
   "name": "hotplate",
   "displayName": "Hotplate — Live Server",
   "description": "⚡ Fast HTTPS live-reload dev server powered by Rust. Hot reload, zero config, LAN access with QR code.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "maithanhduyan",
   "author": {
     "name": "Mai Thành Duy An",
@@ -243,7 +243,10 @@
           "markdownDescription": "Mount additional directories at specific URL paths. Each entry is `[urlPath, fsPath]`.\n\nExample:\n```json\n[\n  [\"/node_modules\", \"./node_modules\"],\n  [\"/assets\", \"../shared/assets\"]\n]\n```"
         },
         "hotplate.multiRootWorkspaceName": {
-          "type": ["string", "null"],
+          "type": [
+            "string",
+            "null"
+          ],
           "default": null,
           "description": "In a multi-root workspace, set the workspace folder name to use as the Live Server root. If not set, a picker will appear."
         }

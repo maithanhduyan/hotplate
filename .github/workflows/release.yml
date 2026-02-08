@@ -52,6 +52,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Sync version from git tag into Cargo.toml (so binary reports correct version)
+      - name: Sync version from tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          sed -i "0,/^version = .*/s//version = \"$VERSION\"/" Cargo.toml
+          echo "✅ Cargo.toml version synced to $VERSION"
+
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -103,6 +111,15 @@ jobs:
         with:
           node-version: 20
 
+      # Sync version from git tag into package.json (so VSIX has correct version)
+      - name: Sync version from tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          cd vscode-extension
+          npm version "$VERSION" --no-git-tag-version --allow-same-version
+          echo "✅ package.json version synced to $VERSION"
+
       # Download all platform binaries into vscode-extension/bin/
       - name: Download all binaries
         uses: actions/download-artifact@v4
@@ -110,11 +127,16 @@ jobs:
           path: vscode-extension/bin/
 
       # download-artifact creates subdirectories per artifact name — flatten them
+      # e.g. hotplate-win32-x64.exe/hotplate-win32-x64.exe
+      # Can't `mv` directly because dir and file share the same name.
       - name: Flatten bin directory
         run: |
           cd vscode-extension/bin
-          find . -mindepth 2 -type f -exec mv {} . \;
-          find . -mindepth 1 -type d -exec rmdir {} + 2>/dev/null || true
+          tmpdir=$(mktemp -d)
+          find . -mindepth 2 -type f -exec mv {} "$tmpdir" \;
+          rm -rf */
+          mv "$tmpdir"/* .
+          rmdir "$tmpdir"
           echo "── bin/ contents ──"
           ls -la
           echo "── Verify all 4 binaries exist ──"
