@@ -1,0 +1,120 @@
+# ──────────────────────────────────────────────────────────────
+# Hotplate — Version Bump & Tag
+#
+# Manually trigger this workflow to:
+#   1. Bump version in Cargo.toml + vscode-extension/package.json
+#   2. Commit the version change
+#   3. Create a git tag (v0.2.0, etc.)
+#   4. Push → automatically triggers release.yml
+#
+# Usage: Actions → "Bump Version" → Run workflow → choose bump type
+# ──────────────────────────────────────────────────────────────
+name: Bump Version
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: "Version bump type"
+        required: true
+        type: choice
+        options:
+          - patch   # 0.1.0 → 0.1.1
+          - minor   # 0.1.0 → 0.2.0
+          - major   # 0.1.0 → 1.0.0
+        default: patch
+      custom_version:
+        description: "Custom version (leave empty to auto-bump, e.g. 1.0.0-beta.1)"
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  bump:
+    name: Bump & Tag
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      # ── Read current version from Cargo.toml ──
+      - name: Get current version
+        id: current
+        run: |
+          VERSION=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)"/\1/')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "📦 Current version: $VERSION"
+
+      # ── Calculate new version ──
+      - name: Calculate new version
+        id: new
+        run: |
+          CURRENT="${{ steps.current.outputs.version }}"
+          CUSTOM="${{ github.event.inputs.custom_version }}"
+          BUMP="${{ github.event.inputs.bump }}"
+
+          if [ -n "$CUSTOM" ]; then
+            NEW_VERSION="$CUSTOM"
+          else
+            IFS='.' read -r MAJOR MINOR PATCH <<< "${CURRENT%%-*}"
+            case "$BUMP" in
+              major) NEW_VERSION="$((MAJOR + 1)).0.0" ;;
+              minor) NEW_VERSION="${MAJOR}.$((MINOR + 1)).0" ;;
+              patch) NEW_VERSION="${MAJOR}.${MINOR}.$((PATCH + 1))" ;;
+            esac
+          fi
+
+          echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "🚀 New version: $CURRENT → $NEW_VERSION"
+
+      # ── Check if tag already exists ──
+      - name: Check tag
+        run: |
+          if git rev-parse "v${{ steps.new.outputs.version }}" >/dev/null 2>&1; then
+            echo "❌ Tag v${{ steps.new.outputs.version }} already exists!"
+            exit 1
+          fi
+
+      # ── Update Cargo.toml ──
+      - name: Update Cargo.toml
+        run: |
+          sed -i "0,/^version = .*/s//version = \"${{ steps.new.outputs.version }}\"/" Cargo.toml
+          echo "✅ Cargo.toml updated"
+          grep '^version' Cargo.toml
+
+      # ── Update vscode-extension/package.json ──
+      - name: Update package.json
+        run: |
+          cd vscode-extension
+          npm version "${{ steps.new.outputs.version }}" --no-git-tag-version --allow-same-version
+          echo "✅ package.json updated"
+          grep '"version"' package.json
+
+      # ── Commit, Tag, Push ──
+      - name: Commit version bump
+        run: |
+          git add Cargo.toml vscode-extension/package.json
+          git commit -m "chore: bump version to v${{ steps.new.outputs.version }}"
+          git tag -a "v${{ steps.new.outputs.version }}" -m "Release v${{ steps.new.outputs.version }}"
+
+      - name: Push changes and tag
+        run: |
+          git push origin HEAD
+          git push origin "v${{ steps.new.outputs.version }}"
+          echo ""
+          echo "✅ Pushed v${{ steps.new.outputs.version }}"
+          echo "🔥 release.yml will now trigger automatically!"

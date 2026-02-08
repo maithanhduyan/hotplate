@@ -23,10 +23,10 @@
         {
             "label": "Copy Hotplate to Extension",
             "type": "shell",
-            "command": "copy",
+            "command": "powershell",
             "args": [
-                "${workspaceFolder}\\target\\release\\hotplate.exe",
-                "${workspaceFolder}\\vscode-extension\\bin\\"
+                "-Command",
+                "$platform = if ($IsWindows -or $env:OS -eq 'Windows_NT') { 'win32' } elseif ($IsMacOS) { 'darwin' } else { 'linux' }; $arch = if ([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture -eq 'Arm64') { 'arm64' } else { 'x64' }; $ext = if ($platform -eq 'win32') { '.exe' } else { '' }; $src = '${workspaceFolder}/target/release/hotplate' + $ext; $dst = '${workspaceFolder}/vscode-extension/bin/hotplate-' + $platform + '-' + $arch + $ext; New-Item -ItemType Directory -Force -Path '${workspaceFolder}/vscode-extension/bin' | Out-Null; Copy-Item $src $dst -Force; Write-Host \"✅ Copied to $dst\""
             ],
             "dependsOn": "Build Hotplate",
             "problemMatcher": []

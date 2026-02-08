@@ -1,6 +1,7 @@
 # 🔥 Hotplate
 
 [![Deploy to GitHub Pages](https://github.com/maithanhduyan/hotplate/actions/workflows/static.yml/badge.svg)](https://github.com/maithanhduyan/hotplate/actions/workflows/static.yml)
+[![Release](https://github.com/maithanhduyan/hotplate/actions/workflows/release.yml/badge.svg)](https://github.com/maithanhduyan/hotplate/actions/workflows/release.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Version](https://img.shields.io/badge/version-0.1.0-orange.svg)](https://github.com/maithanhduyan/hotplate/releases)
 
