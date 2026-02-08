@@ -25,8 +25,9 @@
             "type": "shell",
             "command": "powershell",
             "args": [
-                "-Command",
-                "$platform = if ($IsWindows -or $env:OS -eq 'Windows_NT') { 'win32' } elseif ($IsMacOS) { 'darwin' } else { 'linux' }; $arch = if ([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture -eq 'Arm64') { 'arm64' } else { 'x64' }; $ext = if ($platform -eq 'win32') { '.exe' } else { '' }; $src = '${workspaceFolder}/target/release/hotplate' + $ext; $dst = '${workspaceFolder}/vscode-extension/bin/hotplate-' + $platform + '-' + $arch + $ext; New-Item -ItemType Directory -Force -Path '${workspaceFolder}/vscode-extension/bin' | Out-Null; Copy-Item $src $dst -Force; Write-Host \"✅ Copied to $dst\""
+                "-ExecutionPolicy", "Bypass",
+                "-File", "${workspaceFolder}/scripts/copy-to-extension.ps1",
+                "-WorkspaceFolder", "${workspaceFolder}"
             ],
             "dependsOn": "Build Hotplate",
             "problemMatcher": []
