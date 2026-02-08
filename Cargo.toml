@@ -29,6 +29,9 @@ reqwest = { version = "0.12", default-features = false, features = ["rustls-tls-
 # TLS crypto provider (needed for rustls process-level default)
 rustls = { version = "0.23", default-features = false, features = ["ring"] }
 
+# Self-signed certificate generation
+rcgen = "0.13"
+
 # Utils
 anyhow = "1"
 http-body-util = "0.1"

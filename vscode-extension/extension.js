@@ -169,10 +169,14 @@ function buildArgs(workspacePath, folderRoot) {
     }
 
     // HTTPS
+    const httpsEnable = config.get('https.enable', false);
     const cert = config.get('https.cert', '');
     const key = config.get('https.key', '');
     if (cert && key) {
         args.push('--cert', cert, '--key', key);
+    } else if (httpsEnable) {
+        // Auto-generate self-signed cert via --https flag
+        args.push('--https');
     }
 
     // Live reload
@@ -259,8 +263,8 @@ async function startServer(context, folderRoot, openFilePath, fileUri) {
     const args = buildArgs(workspaceFolder, folderRoot);
     const config = vscode.workspace.getConfiguration('hotplate');
     const port = config.get('port', 5500);
-    const cert = config.get('https.cert', '');
-    const scheme = cert ? 'https' : 'http';
+    const httpsEnabled = config.get('https.enable', false) || config.get('https.cert', '');
+    const scheme = httpsEnabled ? 'https' : 'http';
 
     outputChannel.clear();
     outputChannel.show(true);
@@ -366,7 +370,7 @@ async function startServer(context, folderRoot, openFilePath, fileUri) {
     // Update UI
     updateStatusBar(true, port);
     vscode.commands.executeCommand('setContext', 'hotplate:running', true);
-    vscode.window.showInformationMessage(`🍖 Hotplate started on port ${port}`);
+    vscode.window.showInformationMessage(`🔥 Hotplate started on port ${port}`);
 }
 
 /**

@@ -2,7 +2,7 @@
 
 ## 0.1.0 — Initial Release
 
-- 🍖 Start/Stop/Restart server via command palette
+- 🔥 Start/Stop/Restart server via command palette
 - 🔒 HTTPS support (rustls — no OpenSSL needed)
 - 🔄 Live reload with WebSocket
 - 🌐 LAN access with auto-detected IP

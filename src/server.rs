@@ -24,6 +24,9 @@ use tower_http::{
     services::{ServeDir, ServeFile},
 };
 
+/// Built-in welcome page shown when root directory has no index.html.
+const WELCOME_HTML: &str = include_str!("welcome.html");
+
 // ───────────────────── Shared state ─────────────────────
 
 #[derive(Clone)]
@@ -108,18 +111,29 @@ fn build_router(state: Arc<AppState>, config: &Config) -> Router {
         app = app.nest_service(url_path, mount_service);
     }
 
-    // Static file serving with optional SPA fallback
-    let serve_dir = if let Some(ref spa_file) = config.spa_file {
-        ServeDir::new(&config.root)
-            .append_index_html_on_directories(true)
-            .fallback(ServeFile::new(config.root.join(spa_file)))
-    } else {
-        ServeDir::new(&config.root)
-            .append_index_html_on_directories(true)
-            .fallback(ServeFile::new(config.root.join("404.html")))
-    };
+    // Check if root directory has an index.html
+    let has_index = config.root.join("index.html").exists();
 
-    app = app.fallback_service(serve_dir);
+    // Static file serving with optional SPA fallback
+    if has_index || config.spa_file.is_some() {
+        let serve_dir = if let Some(ref spa_file) = config.spa_file {
+            ServeDir::new(&config.root)
+                .append_index_html_on_directories(true)
+                .fallback(ServeFile::new(config.root.join(spa_file)))
+        } else {
+            ServeDir::new(&config.root)
+                .append_index_html_on_directories(true)
+                .fallback(ServeFile::new(config.root.join("404.html")))
+        };
+        app = app.fallback_service(serve_dir);
+    } else {
+        // No index.html in root — serve static files normally but show welcome page on "/"
+        let serve_dir = ServeDir::new(&config.root)
+            .append_index_html_on_directories(true);
+        app = app
+            .route("/", get(welcome_handler))
+            .fallback_service(serve_dir);
+    }
 
     // Middleware stack (applied bottom-up)
     if config.live_reload {
@@ -160,6 +174,17 @@ fn build_router(state: Arc<AppState>, config: &Config) -> Router {
     }
 
     app.layer(cors).with_state(state)
+}
+
+// ───────────────────── Welcome page handler ─────────────────────
+
+/// Serve the built-in welcome page (when root has no index.html).
+async fn welcome_handler() -> impl IntoResponse {
+    Response::builder()
+        .status(StatusCode::OK)
+        .header(header::CONTENT_TYPE, "text/html; charset=utf-8")
+        .body(Body::from(WELCOME_HTML))
+        .unwrap()
 }
 
 // ───────────────────── Proxy handler ─────────────────────
@@ -249,7 +274,7 @@ fn print_banner(config: &Config) {
     };
 
     println!();
-    println!("  🍖 hotplate v{}", env!("CARGO_PKG_VERSION"));
+    println!("  🔥 hotplate v{}", env!("CARGO_PKG_VERSION"));
     println!("  ─────────────────────────────────────");
     println!("  📂 Root:    {}", config.root.display());
     println!("  🔗 Local:   {}://localhost:{}", scheme, config.port);

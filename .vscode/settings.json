@@ -13,6 +13,7 @@
     "files.insertFinalNewline": true,
 
     // ============ Hotplate Live Server Configuration ============
-    "hotplate.root": ".",
-    "hotplate.fullReload": false
+
+    "hotplate.https.enable": true
+
 }

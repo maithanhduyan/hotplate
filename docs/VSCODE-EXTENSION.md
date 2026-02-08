@@ -3,7 +3,7 @@ Optimizing tool selection...## Gợi ý tên
 | Tên | Ý nghĩa | Availability |
 |-----|----------|-------------|
 | **Servelite** | Serve + Lite — nhẹ, nhanh | ✅ Chưa có trên Marketplace |
-| **Hotplate** | Hot reload + plate (đĩa nướng yakiniku 🍖) | ✅ Catchy, gốc yakiniku |
+| **Hotplate** | Hot reload + plate (đĩa nướng yakiniku 🔥) | ✅ Catchy, gốc yakiniku |
 | **Blaze** | Lửa, tốc độ — ⚡🔥 | ⚠️ Có vài package trùng |
 | **Embrs** | Embers (than hồng) — viết tắt kiểu Rust | ✅ Unique |
 | **Ignite** | Bật lửa — start server nhanh | ⚠️ Có framework trùng |

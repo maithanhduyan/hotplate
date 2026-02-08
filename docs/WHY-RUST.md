@@ -34,7 +34,7 @@ Thay vì fork một extension JavaScript cũ (last commit 2021), chúng tôi quy
 
 | Metric | JS Live Server | Rust Live Server |
 |--------|---------------|-----------------|
-| Binary size | ~50MB (Node.js runtime) | ~7MB (static binary) |
+| Binary size | ~50MB (Node.js runtime) | ~7.5MB (static binary) |
 | Startup time | ~800ms | ~10ms |
 | Memory idle | ~40MB | ~3MB |
 | File watcher | chokidar (JS polling) | notify (OS-native: ReadDirectoryChangesW / inotify / kqueue) |

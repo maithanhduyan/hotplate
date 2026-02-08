@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🔥 Hotplate — Server Running</title>
+<style>
+  :root {
+    --bg: #0f0f0f;
+    --surface: #1a1a1a;
+    --border: #2a2a2a;
+    --text: #e0e0e0;
+    --muted: #888;
+    --accent: #f59e0b;
+    --accent2: #f97316;
+    --green: #22c55e;
+    --code-bg: #161616;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+  }
+  .container {
+    max-width: 640px;
+    width: 100%;
+  }
+
+  /* Header */
+  .header {
+    text-align: center;
+    margin-bottom: 2.5rem;
+  }
+  .logo {
+    font-size: 3.5rem;
+    margin-bottom: 0.5rem;
+    animation: pulse 2s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.08); }
+  }
+  .status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: rgba(34, 197, 94, 0.12);
+    border: 1px solid rgba(34, 197, 94, 0.3);
+    color: var(--green);
+    padding: 0.4rem 1rem;
+    border-radius: 999px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin-bottom: 1rem;
+  }
+  .status-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--green);
+    animation: blink 1.5s ease-in-out infinite;
+  }
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+  h1 {
+    font-size: 1.8rem;
+    font-weight: 700;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 0.5rem;
+  }
+  .subtitle {
+    color: var(--muted);
+    font-size: 0.95rem;
+    line-height: 1.5;
+  }
+
+  /* Cards */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 1rem;
+  }
+  .card h2 {
+    font-size: 1rem;
+    font-weight: 600;
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  /* Steps */
+  .steps {
+    list-style: none;
+    counter-reset: step;
+  }
+  .steps li {
+    counter-increment: step;
+    position: relative;
+    padding-left: 2.2rem;
+    margin-bottom: 1rem;
+    line-height: 1.6;
+    font-size: 0.9rem;
+    color: var(--text);
+  }
+  .steps li:last-child { margin-bottom: 0; }
+  .steps li::before {
+    content: counter(step);
+    position: absolute;
+    left: 0; top: 0.1em;
+    width: 1.5rem; height: 1.5rem;
+    border-radius: 50%;
+    background: rgba(245, 158, 11, 0.15);
+    color: var(--accent);
+    font-size: 0.75rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  code {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    padding: 0.15rem 0.45rem;
+    border-radius: 4px;
+    font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+    font-size: 0.82rem;
+    color: var(--accent);
+    white-space: nowrap;
+  }
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1rem;
+    margin-top: 0.5rem;
+    overflow-x: auto;
+    font-size: 0.82rem;
+    line-height: 1.6;
+  }
+  pre code {
+    background: none;
+    border: none;
+    padding: 0;
+    color: var(--muted);
+    white-space: pre;
+  }
+  pre code .comment { color: #555; }
+  pre code .key { color: var(--accent); }
+  pre code .str { color: var(--green); }
+
+  /* Features */
+  .features {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.6rem;
+  }
+  .feat {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.85rem;
+    color: var(--muted);
+  }
+  .feat span:first-child { font-size: 1rem; }
+
+  /* Footer */
+  .footer {
+    text-align: center;
+    margin-top: 2rem;
+    color: var(--muted);
+    font-size: 0.8rem;
+  }
+  .footer a {
+    color: var(--accent);
+    text-decoration: none;
+  }
+  .footer a:hover { text-decoration: underline; }
+
+  /* Responsive */
+  @media (max-width: 480px) {
+    .features { grid-template-columns: 1fr; }
+    h1 { font-size: 1.5rem; }
+    .logo { font-size: 2.5rem; }
+  }
+</style>
+</head>
+<body>
+  <div class="container">
+
+    <!-- Header -->
+    <div class="header">
+      <div class="logo">🔥</div>
+      <div class="status-badge"><span class="status-dot"></span> Server Running</div>
+      <h1>Hotplate is ready!</h1>
+      <p class="subtitle">
+        Your dev server is running, but no <code>index.html</code> was found in the
+        serving directory. Follow the steps below to get started.
+      </p>
+    </div>
+
+    <!-- Getting Started -->
+    <div class="card">
+      <h2>🚀 Getting Started</h2>
+      <ol class="steps">
+        <li>
+          Create an <code>index.html</code> file in your project root
+          (or the configured <code>root</code> directory).
+        </li>
+        <li>
+          Or set the root directory in VS Code settings:<br>
+          <pre><code><span class="comment">// .vscode/settings.json</span>
+{
+  <span class="key">"hotplate.root"</span>: <span class="str">"./src"</span>,
+  <span class="key">"hotplate.port"</span>: <span class="str">5500</span>
+}</code></pre>
+        </li>
+        <li>
+          Right-click any <code>.html</code> file in the Explorer →
+          <strong>Open with Hotplate</strong> to serve that file directly.
+        </li>
+        <li>
+          Save any file — the page will <strong>auto-reload</strong> instantly.
+        </li>
+      </ol>
+    </div>
+
+    <!-- Features -->
+    <div class="card">
+      <h2>✨ What you get</h2>
+      <div class="features">
+        <div class="feat"><span>🔒</span> HTTPS with auto-generated certs</div>
+        <div class="feat"><span>⚡</span> ~2ms live reload</div>
+        <div class="feat"><span>🎨</span> CSS hot swap (no flash)</div>
+        <div class="feat"><span>📱</span> LAN access for mobile testing</div>
+        <div class="feat"><span>🔀</span> Built-in reverse proxy</div>
+        <div class="feat"><span>📂</span> SPA fallback routing</div>
+        <div class="feat"><span>🪶</span> Single ~7.5 MB binary</div>
+        <div class="feat"><span>🧩</span> Zero-config out of the box</div>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="footer">
+      <p>🔥 Hotplate — Fast HTTPS live-reload dev server</p>
+      <p style="margin-top:0.3rem;">
+        <a href="https://github.com/maithanhduyan/hotplate" target="_blank">GitHub</a>
+        &nbsp;·&nbsp;
+        <a href="https://marketplace.visualstudio.com/items?itemName=maithanhduyan.hotplate" target="_blank">VS Code Marketplace</a>
+      </p>
+    </div>
+
+  </div>
+</body>
+</html>

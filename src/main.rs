@@ -2,6 +2,7 @@
 //!
 //! Usage:
 //!   hotplate --root ./apps --port 5500
+//!   hotplate --https                   # auto-generates self-signed cert in .cert/
 //!   hotplate --root ./apps --cert .cert/server.crt --key .cert/server.key
 //!   hotplate                          # auto-reads .vscode/settings.json
 
@@ -74,6 +75,10 @@ struct Cli {
     /// Mount an extra directory at a URL path (can be repeated, format: "/url_path:./fs_path")
     #[arg(long = "mount")]
     mounts: Vec<String>,
+
+    /// Enable HTTPS (auto-generates self-signed cert if --cert/--key not provided)
+    #[arg(long, default_value_t = false)]
+    https: bool,
 }
 
 // ───────────────────── Config ─────────────────────
@@ -225,6 +230,72 @@ fn resolve_path(workspace: &Path, p: &str) -> PathBuf {
     }
 }
 
+/// Generate a self-signed TLS certificate and key in `<workspace>/.cert/`.
+/// Returns the paths to the generated cert and key files.
+/// If the files already exist, they are reused without regeneration.
+fn generate_self_signed_cert(workspace: &Path) -> Result<(PathBuf, PathBuf)> {
+    let cert_dir = workspace.join(".cert");
+    let cert_path = cert_dir.join("hotplate.crt");
+    let key_path = cert_dir.join("hotplate.key");
+
+    // Reuse existing certs if they exist
+    if cert_path.exists() && key_path.exists() {
+        println!("  🔒 Reusing existing self-signed cert at .cert/");
+        return Ok((cert_path, key_path));
+    }
+
+    // Create .cert directory
+    std::fs::create_dir_all(&cert_dir)
+        .with_context(|| format!("Failed to create directory: {}", cert_dir.display()))?;
+
+    // Generate self-signed certificate with rcgen
+    let mut params = rcgen::CertificateParams::new(vec![
+        "localhost".to_string(),
+    ])?;
+    params.distinguished_name.push(
+        rcgen::DnType::CommonName,
+        rcgen::DnValue::Utf8String("Hotplate Dev Server".to_string()),
+    );
+    params.distinguished_name.push(
+        rcgen::DnType::OrganizationName,
+        rcgen::DnValue::Utf8String("Hotplate".to_string()),
+    );
+
+    // Add Subject Alternative Names for common dev scenarios
+    params.subject_alt_names = vec![
+        rcgen::SanType::DnsName("localhost".try_into()?),
+        rcgen::SanType::IpAddress(std::net::IpAddr::V4(std::net::Ipv4Addr::new(127, 0, 0, 1))),
+        rcgen::SanType::IpAddress(std::net::IpAddr::V6(std::net::Ipv6Addr::LOCALHOST)),
+    ];
+
+    // Add LAN IPs to SAN so mobile devices can connect without warnings
+    if let Some(lan_ip) = get_lan_ip() {
+        params.subject_alt_names.push(rcgen::SanType::IpAddress(lan_ip));
+    }
+
+    let key_pair = rcgen::KeyPair::generate()?;
+    let cert = params.self_signed(&key_pair)?;
+
+    // Write PEM files
+    std::fs::write(&cert_path, cert.pem())
+        .with_context(|| format!("Failed to write cert: {}", cert_path.display()))?;
+    std::fs::write(&key_path, key_pair.serialize_pem())
+        .with_context(|| format!("Failed to write key: {}", key_path.display()))?;
+
+    println!("  🔒 Generated self-signed certificate:");
+    println!("     📄 {}", cert_path.display());
+    println!("     🔑 {}", key_path.display());
+
+    Ok((cert_path, key_path))
+}
+
+/// Detect LAN IPv4 address (same logic used in server.rs banner)
+fn get_lan_ip() -> Option<std::net::IpAddr> {
+    let socket = std::net::UdpSocket::bind("0.0.0.0:0").ok()?;
+    socket.connect("8.8.8.8:80").ok()?;
+    socket.local_addr().ok().map(|a| a.ip())
+}
+
 fn build_config(cli: Cli) -> Result<Config> {
     let workspace = cli
         .workspace
@@ -250,7 +321,8 @@ fn build_config(cli: Cli) -> Result<Config> {
         None => workspace.clone(),
     };
 
-    // HTTPS: CLI --cert/--key > vscode https
+    // HTTPS: CLI --cert/--key > vscode https > --https (auto-generate)
+    let https_flag = cli.https;
     let (cert, key) = match (cli.cert, cli.key) {
         (Some(c), Some(k)) => (
             Some(resolve_path(&workspace, &c)),
@@ -268,6 +340,9 @@ fn build_config(cli: Cli) -> Result<Config> {
                         .as_ref()
                         .map(|p| resolve_path(&workspace, p));
                     (c, k)
+                } else if https_flag {
+                    // --https flag without cert paths in settings → auto-generate
+                    (None, None)
                 } else {
                     (None, None)
                 }
@@ -275,6 +350,14 @@ fn build_config(cli: Cli) -> Result<Config> {
                 (None, None)
             }
         }
+    };
+
+    // Auto-generate self-signed cert when --https is used but no cert/key provided
+    let (cert, key) = if cert.is_none() && key.is_none() && https_flag {
+        let (c, k) = generate_self_signed_cert(&workspace)?;
+        (Some(c), Some(k))
+    } else {
+        (cert, key)
     };
 
     // Validate cert/key files exist

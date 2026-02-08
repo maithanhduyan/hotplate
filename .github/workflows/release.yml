@@ -147,7 +147,7 @@ jobs:
         with:
           name: "Hotplate v${{ steps.version.outputs.version }}"
           body: |
-            ## 🍖 Hotplate v${{ steps.version.outputs.version }}
+            ## 🔥 Hotplate v${{ steps.version.outputs.version }}
 
             ### Installation
             - **VS Code**: Download the `.vsix` file → `Extensions` → `...` → `Install from VSIX`

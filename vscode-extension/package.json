@@ -142,15 +142,20 @@
           "default": "0.0.0.0",
           "description": "Bind host. Use 0.0.0.0 for LAN access, 127.0.0.1 for localhost only."
         },
+        "hotplate.https.enable": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable HTTPS. If cert/key are not provided, a self-signed certificate will be auto-generated in .cert/ directory."
+        },
         "hotplate.https.cert": {
           "type": "string",
           "default": "",
-          "description": "Path to TLS certificate file (PEM). Relative to workspace."
+          "description": "Path to TLS certificate file (PEM). Relative to workspace. Leave empty for auto-generated self-signed cert."
         },
         "hotplate.https.key": {
           "type": "string",
           "default": "",
-          "description": "Path to TLS private key file (PEM). Relative to workspace."
+          "description": "Path to TLS private key file (PEM). Relative to workspace. Leave empty for auto-generated self-signed cert."
         },
         "hotplate.liveReload": {
           "type": "boolean",
