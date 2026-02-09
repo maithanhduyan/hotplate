@@ -35,9 +35,10 @@ Cải thiện trải nghiệm lập trình viên hàng ngày:
 - [x] **Mount directories** — `--mount "/url:./path"` serve nhiều thư mục trên cùng một server
 - [x] **Auto-generate HTTPS cert** — `--https` flag tự tạo self-signed cert với rcgen
 - [x] **Full reload flag** — `--full-reload` disable CSS hot swap, luôn reload toàn trang
-- [ ] **QR Code** — hiển thị QR code trong terminal cho mobile truy cập nhanh
-- [ ] **Gzip/Brotli** — nén response tự động
+- [x] **Watch extensions** — mặc định chỉ watch file UI (html, css, js, ts...), `--watch-ext` hoặc `hotplate.watchExtensions` để tùy chỉnh, `"*"` để watch tất cả
 - [x] **Cache control** — `Cache-Control: no-cache` mặc định cho dev (browser revalidate, 304 vẫn hoạt động)
+- [ ] **QR Code** — hiển thị QR code trong terminal cho mobile truy cập nhanh
+- [ ] **Gzip/Brotli** — nén response tự động (opt-in, không cần cho localhost)
 - [ ] **Error overlay** — hiển thị lỗi build đẹp trên browser (như Vite)
 
 ---

@@ -79,6 +79,11 @@ struct Cli {
     /// Enable HTTPS (auto-generates self-signed cert if --cert/--key not provided)
     #[arg(long, default_value_t = false)]
     https: bool,
+
+    /// File extensions to watch for live reload (can be repeated, e.g. --watch-ext html --watch-ext css)
+    /// Defaults to UI-related extensions (html, css, js, ts, etc.). Use "*" to watch all files.
+    #[arg(long = "watch-ext")]
+    watch_extensions: Vec<String>,
 }
 
 // ───────────────────── Config ─────────────────────
@@ -94,6 +99,7 @@ pub struct Config {
     pub full_reload: bool,
     pub workspace: PathBuf,
     pub ignore_patterns: Vec<String>,
+    pub watch_extensions: Vec<String>,
     pub spa_file: Option<String>,
     pub proxy_base: Option<String>,
     pub proxy_target: Option<String>,
@@ -123,6 +129,8 @@ struct VsCodeSettings {
     root: Option<String>,
     #[serde(rename = "hotplate.https")]
     https: Option<VsCodeHttps>,
+    #[serde(rename = "hotplate.watchExtensions", default)]
+    watch_extensions: Option<Vec<String>>,
 }
 
 /// Strip // and /* */ comments and trailing commas from JSONC
@@ -371,6 +379,15 @@ fn build_config(cli: Cli) -> Result<Config> {
 
     let mounts = parse_mounts(&cli.mounts, &workspace);
 
+    // Watch extensions: CLI --watch-ext > vscode watchExtensions > [] (use defaults in watcher)
+    let watch_extensions = if !cli.watch_extensions.is_empty() {
+        cli.watch_extensions
+    } else {
+        vs.as_ref()
+            .and_then(|s| s.watch_extensions.clone())
+            .unwrap_or_default()
+    };
+
     Ok(Config {
         host,
         port,
@@ -381,6 +398,7 @@ fn build_config(cli: Cli) -> Result<Config> {
         full_reload,
         workspace,
         ignore_patterns: cli.ignore,
+        watch_extensions,
         spa_file: cli.file,
         proxy_base: cli.proxy_base,
         proxy_target: cli.proxy_target,

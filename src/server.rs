@@ -356,7 +356,7 @@ pub async fn run(mut config: Config) -> Result<()> {
 
     // Start file watcher
     if config.live_reload {
-        watcher::spawn(config.root.clone(), reload_tx, &config.ignore_patterns)?;
+        watcher::spawn(config.root.clone(), reload_tx, &config.ignore_patterns, &config.watch_extensions)?;
     }
 
     let app = build_router(state, &config);
