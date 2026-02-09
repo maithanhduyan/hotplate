@@ -54,8 +54,7 @@ Or use Command Palette: `Ctrl+Shift+P` → `Hotplate: Start Server`
 {
   "hotplate.port": 5500,
   "hotplate.root": "apps",
-  "hotplate.https.cert": ".hotplate/certs/server.crt",
-  "hotplate.https.key": ".hotplate/certs/server.key"
+  "hotplate.https.enable": true,
 }
 ```
 
@@ -64,7 +63,7 @@ Or use Command Palette: `Ctrl+Shift+P` → `Hotplate: Start Server`
 ```
 ┌─────────────┐   spawn    ┌──────────────────┐
 │  extension.js│ ─────────→│  hotplate.exe     │
-│  (~250 LOC)  │           │  (Rust binary)    │
+│  (~640 LOC)  │           │  (Rust binary)    │
 │              │           │                   │
 │  • statusBar │  stdout   │  • axum server    │
 │  • commands  │◄──────────│  • file watcher   │
@@ -82,7 +81,7 @@ The extension is a thin JavaScript wrapper. All heavy lifting runs in a native R
 
 ## Compatibility
 
-Works with existing `liveServer.settings.*` in `.vscode/settings.json` — drop-in replacement for Live Server extension.
+Works with `hotplate.host` in `.vscode/settings.json` — drop-in replacement for Live Server extension.
 
 ## Requirements
 
