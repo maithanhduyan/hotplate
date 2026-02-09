@@ -180,6 +180,29 @@
             send({kind:"screenshot_response", url: id, msg: ""});
           }
         })();
+      } else if (d.startsWith("dom_query:")) {
+        // dom_query:{id}:{selector}
+        const idx = d.indexOf(":", 10);
+        const id = d.slice(10, idx);
+        const selector = d.slice(idx + 1);
+        try {
+          const els = document.querySelectorAll(selector);
+          const result = [];
+          els.forEach((el, i) => {
+            if (i >= 200) return; // cap at 200 elements
+            const attrs = {};
+            for (const a of el.attributes) attrs[a.name] = a.value;
+            result.push({
+              tag: el.tagName.toLowerCase(),
+              text: (el.textContent || "").slice(0, 500),
+              attributes: attrs,
+              innerHTML: (el.innerHTML || "").slice(0, 1000)
+            });
+          });
+          send({kind:"dom_response", url: id, msg: JSON.stringify(result)});
+        } catch (err) {
+          send({kind:"dom_response", url: id, msg: JSON.stringify({error: err.message})});
+        }
       }
     };
     ws.onclose = () => {

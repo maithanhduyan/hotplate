@@ -67,6 +67,8 @@ pub struct HotplateState {
     pub console_logs: Option<crate::server::ConsoleLogBuffer>,
     /// Shared in-memory buffer of browser network requests.
     pub network_logs: Option<crate::server::NetworkLogBuffer>,
+    /// Receiver for DOM query responses from the browser (id, json_data).
+    pub dom_rx: Option<Arc<tokio::sync::Mutex<tokio::sync::mpsc::UnboundedReceiver<(String, String)>>>>,
 }
 
 // ───────────────────── McpServer ─────────────────────
@@ -307,16 +309,19 @@ impl Tool for StartTool {
 
         let (reload_tx, _) = broadcast::channel::<String>(16);
         let (screenshot_tx, screenshot_rx) = tokio::sync::mpsc::unbounded_channel::<(String, String)>();
+        let (dom_tx, dom_rx) = tokio::sync::mpsc::unbounded_channel::<(String, String)>();
         let console_logs: crate::server::ConsoleLogBuffer = Arc::new(std::sync::Mutex::new(Vec::new()));
         let network_logs: crate::server::NetworkLogBuffer = Arc::new(std::sync::Mutex::new(Vec::new()));
         st.reload_tx = Some(reload_tx.clone());
         st.screenshot_rx = Some(Arc::new(tokio::sync::Mutex::new(screenshot_rx)));
+        st.dom_rx = Some(Arc::new(tokio::sync::Mutex::new(dom_rx)));
         st.console_logs = Some(console_logs.clone());
         st.network_logs = Some(network_logs.clone());
 
         let ext = ExternalChannels {
             reload_tx: reload_tx.clone(),
             screenshot_tx,
+            dom_tx,
             console_logs,
             network_logs,
         };
@@ -393,6 +398,7 @@ impl Tool for StopTool {
         st.config = None;
         st.reload_tx = None;
         st.screenshot_rx = None;
+        st.dom_rx = None;
         st.console_logs = None;
         st.network_logs = None;
 
@@ -817,6 +823,108 @@ impl Tool for InjectTool {
     }
 }
 
+// ───────────────────── hotplate_dom ─────────────────────
+
+struct DomTool {
+    state: Arc<std::sync::Mutex<HotplateState>>,
+}
+
+impl Tool for DomTool {
+    fn definition(&self) -> McpTool {
+        McpTool {
+            name: "hotplate_dom".into(),
+            description: "Query DOM from connected browser using a CSS selector.".into(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "selector": {
+                        "type": "string",
+                        "description": "CSS selector to query (e.g. 'h1', '.card', '#main')"
+                    }
+                },
+                "required": ["selector"]
+            }),
+        }
+    }
+
+    fn execute(&self, params: Value) -> McpResult<Value> {
+        let st = self.state.lock().map_err(|e| format!("Lock: {e}"))?;
+
+        if !st.running.load(Ordering::Relaxed) {
+            return Ok(text_response("Server is not running.".into()));
+        }
+
+        let selector = params.get("selector")
+            .and_then(|v| v.as_str())
+            .ok_or("Missing 'selector' parameter")?;
+
+        let request_id = format!("dom_{}", std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis());
+
+        // Send DOM query to browser: "dom_query:{id}:{selector}"
+        let msg = format!("dom_query:{}:{}", request_id, selector);
+        let tx = match st.reload_tx {
+            Some(ref tx) => tx.clone(),
+            None => return Ok(text_response("No reload channel available.".into())),
+        };
+        match tx.send(msg) {
+            Ok(0) | Err(_) => {
+                return Ok(text_response("No browsers connected to query DOM.".into()));
+            }
+            _ => {}
+        }
+
+        // Get dom_rx and rt_handle to wait for response
+        let dom_rx = match st.dom_rx {
+            Some(ref rx) => rx.clone(),
+            None => return Ok(text_response("DOM channel not available.".into())),
+        };
+        let rt_handle = st.rt_handle.clone();
+        let rid = request_id.clone();
+
+        // Drop the lock before blocking wait
+        drop(st);
+
+        // Wait for the browser response with a timeout
+        let result = rt_handle.block_on(async {
+            let mut rx = dom_rx.lock().await;
+            tokio::time::timeout(Duration::from_secs(10), async {
+                while let Some((id, data)) = rx.recv().await {
+                    if id == rid {
+                        return Some(data);
+                    }
+                }
+                None
+            }).await
+        });
+
+        match result {
+            Ok(Some(json_data)) => {
+                // Parse the JSON string from browser to get structured data
+                let parsed: Value = serde_json::from_str(&json_data)
+                    .unwrap_or_else(|_| json!({"error": "Failed to parse DOM response"}));
+
+                // Check if it's an error response
+                if let Some(err) = parsed.get("error").and_then(|v| v.as_str()) {
+                    return Ok(text_response(format!("DOM query error: {}", err)));
+                }
+
+                let elements = if let Some(arr) = parsed.as_array() { arr.len() } else { 0 };
+                let result = json!({
+                    "selector": selector,
+                    "total": elements,
+                    "elements": parsed
+                });
+                Ok(text_response(serde_json::to_string_pretty(&result)?))
+            }
+            Ok(None) => Ok(text_response("DOM query returned no data.".into())),
+            Err(_) => Ok(text_response("DOM query timed out after 10s. Is a browser page open?".into())),
+        }
+    }
+}
+
 // ───────────────────── hotplate_screenshot ─────────────────────
 
 struct ScreenshotTool {
@@ -939,6 +1047,7 @@ pub fn run_mcp() -> McpResult<()> {
         screenshot_rx: None,
         console_logs: None,
         network_logs: None,
+        dom_rx: None,
     }));
 
     let mut server = McpServer::new();
@@ -951,8 +1060,9 @@ pub fn run_mcp() -> McpResult<()> {
     server.register_tool(Box::new(ConsoleTool    { state: state.clone() }));
     server.register_tool(Box::new(NetworkTool    { state: state.clone() }));
     server.register_tool(Box::new(ServerLogsTool { state: state.clone() }));
+    server.register_tool(Box::new(DomTool        { state: state.clone() }));
 
-    eprintln!("[hotplate-mcp] ready — 9 tools registered, waiting for JSON-RPC on stdin…");
+    eprintln!("[hotplate-mcp] ready — 10 tools registered, waiting for JSON-RPC on stdin…");
 
     server.run()
 }
