@@ -599,6 +599,163 @@ impl Tool for NetworkTool {
     }
 }
 
+// ───────────────────── hotplate_server_logs ─────────────────────
+
+struct ServerLogsTool {
+    state: Arc<std::sync::Mutex<HotplateState>>,
+}
+
+impl Tool for ServerLogsTool {
+    fn definition(&self) -> McpTool {
+        McpTool {
+            name: "hotplate_server_logs".into(),
+            description: "Get server-side event logs (file changes, reloads, errors, HTTP requests, WS connections).".into(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "kind": {
+                        "type": "string",
+                        "enum": ["all", "server_start", "server_stop", "file_change", "reload_trigger",
+                                 "ws_connect", "ws_disconnect", "http_request", "js_error", "console_log", "network_error"],
+                        "description": "Filter by event kind. Default: 'all'."
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Max number of entries to return (from the end, most recent). Default: 100."
+                    },
+                    "session": {
+                        "type": "string",
+                        "enum": ["current", "latest", "all"],
+                        "description": "Which session file to read. 'current' = running server session, 'latest' = most recent log file, 'all' = list available sessions. Default: 'current'."
+                    }
+                },
+                "required": []
+            }),
+        }
+    }
+
+    fn execute(&self, params: Value) -> McpResult<Value> {
+        let st = self.state.lock().map_err(|e| format!("Lock: {e}"))?;
+
+        // Determine workspace path from config or cwd
+        let workspace = if let Some(ref cfg) = st.config {
+            cfg.workspace.clone()
+        } else {
+            std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."))
+        };
+        drop(st);
+
+        let log_dir = workspace.join(".hotplate").join("logs");
+        if !log_dir.exists() {
+            return Ok(text_response("No event logs found. Server may not have been started with event logging enabled.".into()));
+        }
+
+        let session_mode = params.get("session")
+            .and_then(|v| v.as_str())
+            .unwrap_or("current");
+
+        // List available session files
+        let mut session_files: Vec<std::path::PathBuf> = std::fs::read_dir(&log_dir)
+            .into_iter()
+            .flatten()
+            .filter_map(|e| e.ok())
+            .filter(|e| {
+                let name = e.file_name().to_string_lossy().to_string();
+                name.starts_with("events-") && name.ends_with(".jsonl")
+            })
+            .map(|e| e.path())
+            .collect();
+        session_files.sort();
+
+        if session_files.is_empty() {
+            return Ok(text_response("No event log files found.".into()));
+        }
+
+        // Handle "all" mode — list available sessions
+        if session_mode == "all" {
+            let sessions: Vec<String> = session_files.iter()
+                .map(|p| {
+                    let name = p.file_name().unwrap_or_default().to_string_lossy().to_string();
+                    let size = std::fs::metadata(p).map(|m| m.len()).unwrap_or(0);
+                    format!("{} ({}B)", name, size)
+                })
+                .collect();
+            let result = json!({
+                "total": sessions.len(),
+                "sessions": sessions
+            });
+            return Ok(text_response(serde_json::to_string_pretty(&result)?));
+        }
+
+        // Pick which file to read
+        let log_file = if session_mode == "current" {
+            // Find the current session's file (from running config)
+            let st = self.state.lock().map_err(|e| format!("Lock: {e}"))?;
+            if st.running.load(Ordering::Relaxed) {
+                // Most recent file is likely the current session
+                session_files.last().cloned()
+            } else {
+                // Server not running — show latest
+                session_files.last().cloned()
+            }
+        } else {
+            // "latest"
+            session_files.last().cloned()
+        };
+
+        let log_file = match log_file {
+            Some(f) => f,
+            None => return Ok(text_response("No event log files found.".into())),
+        };
+
+        // Read and parse the JSONL file
+        let content = match std::fs::read_to_string(&log_file) {
+            Ok(c) => c,
+            Err(e) => return Ok(text_response(format!("Failed to read log file: {e}"))),
+        };
+
+        let kind_filter = params.get("kind")
+            .and_then(|v| v.as_str())
+            .unwrap_or("all");
+        let limit = params.get("limit")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(100) as usize;
+
+        // Parse lines as raw JSON values, filter by kind
+        let mut entries: Vec<Value> = content.lines()
+            .filter(|line| !line.trim().is_empty())
+            .filter_map(|line| serde_json::from_str::<Value>(line).ok())
+            .filter(|entry| {
+                if kind_filter == "all" { return true; }
+                entry.get("kind")
+                    .and_then(|k| k.as_str())
+                    .map(|k| k == kind_filter)
+                    .unwrap_or(false)
+            })
+            .collect();
+
+        // Take last N entries (most recent)
+        let total = entries.len();
+        if entries.len() > limit {
+            entries = entries.split_off(entries.len() - limit);
+        }
+
+        let session_name = log_file.file_name()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .to_string();
+
+        let result = json!({
+            "session": session_name,
+            "total": total,
+            "showing": entries.len(),
+            "logs": entries
+        });
+
+        Ok(text_response(serde_json::to_string_pretty(&result)?))
+    }
+}
+
 // ───────────────────── hotplate_inject ─────────────────────
 
 struct InjectTool {
@@ -793,8 +950,9 @@ pub fn run_mcp() -> McpResult<()> {
     server.register_tool(Box::new(ScreenshotTool { state: state.clone() }));
     server.register_tool(Box::new(ConsoleTool    { state: state.clone() }));
     server.register_tool(Box::new(NetworkTool    { state: state.clone() }));
+    server.register_tool(Box::new(ServerLogsTool { state: state.clone() }));
 
-    eprintln!("[hotplate-mcp] ready — 8 tools registered, waiting for JSON-RPC on stdin…");
+    eprintln!("[hotplate-mcp] ready — 9 tools registered, waiting for JSON-RPC on stdin…");
 
     server.run()
 }
