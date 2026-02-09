@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.0 — Initial Release
+## 0.1.0 — Initial Release(2026-02-08)
 
 - 🔥 Start/Stop/Restart server via command palette
 - 🔒 HTTPS support (rustls — no OpenSSL needed)

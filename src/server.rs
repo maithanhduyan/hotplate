@@ -1,6 +1,7 @@
 //! HTTP/HTTPS server with static files + WebSocket live reload + SPA fallback + proxy.
 
 use crate::inject::inject_livereload;
+use crate::events::{EventData, EventLogger};
 use crate::watcher;
 use crate::Config;
 
@@ -18,6 +19,8 @@ use axum::{
     Router,
 };
 use std::{net::SocketAddr, sync::Arc};
+use std::time::Instant;
+use std::sync::atomic::{AtomicU64, Ordering};
 use tokio::sync::broadcast;
 use tower_http::{
     cors::{Any, CorsLayer},
@@ -39,6 +42,8 @@ pub struct AppState {
     pub proxy_base: Option<String>,
     pub proxy_target: Option<String>,
     pub http_client: reqwest::Client,
+    pub event_logger: EventLogger,
+    pub client_counter: Arc<AtomicU64>,
 }
 
 // ───────────────────── WebSocket handler ─────────────────────
@@ -52,24 +57,120 @@ async fn ws_handler(
 
 async fn handle_socket(mut socket: WebSocket, state: Arc<AppState>) {
     let mut rx = state.reload_tx.subscribe();
-    while let Ok(changed_path) = rx.recv().await {
-        // Determine reload message:
-        //   - If full_reload is true → always send "reload" (full page reload)
-        //   - If the changed file is CSS → send "css:<path>" for CSS-only hot swap
-        //   - Otherwise → send "reload"
-        let msg = if !state.full_reload && is_css_file(&changed_path) {
-            format!("css:{}", changed_path)
-        } else {
-            "reload".to_string()
-        };
+    let client_id = format!("c{}", state.client_counter.fetch_add(1, Ordering::Relaxed));
 
-        if socket
-            .send(Message::Text(msg))
-            .await
-            .is_err()
-        {
-            break;
+    loop {
+        tokio::select! {
+            // Server → Browser: reload commands
+            result = rx.recv() => {
+                let Ok(changed_path) = result else { break };
+
+                let reload_type = if !state.full_reload && is_css_file(&changed_path) {
+                    "css"
+                } else {
+                    "full"
+                };
+                let msg = if reload_type == "css" {
+                    format!("css:{}", changed_path)
+                } else {
+                    "reload".to_string()
+                };
+
+                state.event_logger.log(EventData::ReloadTrigger {
+                    path: changed_path,
+                    reload_type: reload_type.to_string(),
+                });
+
+                if socket.send(Message::Text(msg)).await.is_err() {
+                    break;
+                }
+            }
+            // Browser → Server: client events (console, errors, etc.)
+            result = socket.recv() => {
+                match result {
+                    Some(Ok(Message::Text(text))) => {
+                        handle_browser_message(&text, &client_id, &state);
+                    }
+                    Some(Ok(Message::Close(_))) | None => break,
+                    _ => {} // ignore binary, ping, pong
+                }
+            }
         }
+    }
+
+    state.event_logger.log(EventData::WsDisconnect {
+        client_id,
+    });
+}
+
+/// Parse and log a JSON message from the browser.
+fn handle_browser_message(text: &str, client_id: &str, state: &Arc<AppState>) {
+    #[derive(serde::Deserialize)]
+    struct BrowserMsg {
+        kind: String,
+        #[serde(default)]
+        url: String,
+        #[serde(default)]
+        ua: String,
+        #[serde(default)]
+        vw: u32,
+        #[serde(default)]
+        vh: u32,
+        #[serde(default)]
+        msg: String,
+        #[serde(default)]
+        src: String,
+        #[serde(default)]
+        line: u32,
+        #[serde(default)]
+        col: u32,
+        #[serde(default)]
+        stack: String,
+        #[serde(default)]
+        level: String,
+        #[serde(default)]
+        method: String,
+        #[serde(default)]
+        status: u16,
+        #[serde(default)]
+        error: String,
+    }
+
+    let Ok(m) = serde_json::from_str::<BrowserMsg>(text) else { return };
+
+    match m.kind.as_str() {
+        "connect" => {
+            state.event_logger.log(EventData::WsConnect {
+                client_id: client_id.to_string(),
+                url: m.url,
+                user_agent: m.ua,
+                viewport: (m.vw, m.vh),
+            });
+        }
+        "js_error" => {
+            state.event_logger.log(EventData::JsError {
+                message: m.msg,
+                source: m.src,
+                line: m.line,
+                col: m.col,
+                stack: m.stack,
+            });
+        }
+        "console" => {
+            state.event_logger.log(EventData::ConsoleLog {
+                level: m.level,
+                message: m.msg,
+            });
+        }
+        "net_error" => {
+            state.event_logger.log(EventData::NetworkError {
+                url: m.url,
+                method: m.method,
+                status: m.status,
+                error: m.error,
+            });
+        }
+        _ => {} // unknown kind — silently skip
     }
 }
 
@@ -176,7 +277,30 @@ fn build_router(state: Arc<AppState>, config: &Config) -> Router {
 
     // Cache-Control: no-cache — browser must revalidate every request (304 still works).
     // Prevents stale JS/images after live-reload triggers location.reload().
-    app.layer(SetResponseHeaderLayer::overriding(
+    //
+    // HTTP request logging middleware (outermost — captures all requests).
+    let event_logger = state.event_logger.clone();
+    app.layer(middleware::from_fn(move |req: Request<Body>, next: Next| {
+        let logger = event_logger.clone();
+        async move {
+            let method = req.method().to_string();
+            let path = req.uri().path().to_string();
+            // Skip WebSocket upgrade and internal paths from logging
+            let should_log = !path.starts_with("/__lr");
+            let start = Instant::now();
+            let resp = next.run(req).await;
+            if should_log {
+                logger.log(EventData::HttpRequest {
+                    method,
+                    path,
+                    status: resp.status().as_u16(),
+                    duration_ms: start.elapsed().as_millis() as u64,
+                });
+            }
+            resp
+        }
+    }))
+    .layer(SetResponseHeaderLayer::overriding(
         header::CACHE_CONTROL,
         axum::http::HeaderValue::from_static("no-cache"),
     ))
@@ -339,6 +463,13 @@ const MAX_PORT_RETRIES: u16 = 20;
 pub async fn run(mut config: Config) -> Result<()> {
     let (reload_tx, _) = broadcast::channel::<String>(16);
 
+    // Event logger (JSONL)
+    let event_logger = if config.event_log {
+        EventLogger::new(&config.workspace)
+    } else {
+        EventLogger::noop()
+    };
+
     // HTTP client for proxy (reusable connection pool)
     let http_client = reqwest::Client::builder()
         .danger_accept_invalid_certs(true) // dev mode — proxy targets may use self-signed
@@ -352,11 +483,22 @@ pub async fn run(mut config: Config) -> Result<()> {
         proxy_base: config.proxy_base.clone(),
         proxy_target: config.proxy_target.clone(),
         http_client,
+        event_logger: event_logger.clone(),
+        client_counter: Arc::new(AtomicU64::new(0)),
+    });
+
+    // Log server start event
+    event_logger.log(EventData::ServerStart {
+        port: config.port,
+        host: config.host.clone(),
+        root: config.root.display().to_string(),
+        https: config.cert.is_some(),
+        live_reload: config.live_reload,
     });
 
     // Start file watcher
     if config.live_reload {
-        watcher::spawn(config.root.clone(), reload_tx, &config.ignore_patterns, &config.watch_extensions)?;
+        watcher::spawn(config.root.clone(), reload_tx, &config.ignore_patterns, &config.watch_extensions, event_logger)?;
     }
 
     let app = build_router(state, &config);

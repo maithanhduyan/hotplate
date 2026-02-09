@@ -6,6 +6,7 @@
 //!   hotplate --root ./apps --cert .cert/server.crt --key .cert/server.key
 //!   hotplate                          # auto-reads .vscode/settings.json
 
+mod events;
 mod inject;
 mod server;
 mod watcher;
@@ -84,6 +85,10 @@ struct Cli {
     /// Defaults to UI-related extensions (html, css, js, ts, etc.). Use "*" to watch all files.
     #[arg(long = "watch-ext")]
     watch_extensions: Vec<String>,
+
+    /// Disable event logging (no .hotplate/events-*.jsonl files)
+    #[arg(long, default_value_t = false)]
+    no_event_log: bool,
 }
 
 // ───────────────────── Config ─────────────────────
@@ -105,6 +110,7 @@ pub struct Config {
     pub proxy_target: Option<String>,
     pub headers: Vec<(String, String)>,
     pub mounts: Vec<(String, PathBuf)>,
+    pub event_log: bool,
 }
 
 // ───────────────────── VS Code settings.json ─────────────────────
@@ -404,6 +410,7 @@ fn build_config(cli: Cli) -> Result<Config> {
         proxy_target: cli.proxy_target,
         headers: parse_headers(&cli.headers),
         mounts,
+        event_log: !cli.no_event_log,
     })
 }
 

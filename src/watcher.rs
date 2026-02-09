@@ -8,6 +8,8 @@ use std::path::PathBuf;
 use std::time::{Duration, Instant};
 use tokio::sync::broadcast;
 
+use crate::events::{EventData, EventLogger};
+
 /// Directories/files to always ignore.
 const IGNORE_DIRS: &[&str] = &[".git", "node_modules", "target", "__pycache__", ".venv"];
 const IGNORE_EXTS: &[&str] = &["pyc", "pyo", "swp", "swo", "tmp"];
@@ -99,6 +101,7 @@ pub fn spawn(
     reload_tx: broadcast::Sender<String>,
     ignore_patterns: &[String],
     watch_extensions: &[String],
+    event_logger: EventLogger,
 ) -> Result<()> {
     let (tx, rx) = std::sync::mpsc::channel::<Result<Event, notify::Error>>();
 
@@ -164,7 +167,24 @@ pub fn spawn(
                         rel.to_string_lossy().replace('\\', "/")
                     })
                     .unwrap_or_default();
+                // Determine change type from event kind
+                let change = match &event.kind {
+                    EventKind::Create(_) => "create",
+                    EventKind::Remove(_) => "remove",
+                    _ => "modify",
+                };
 
+                // Extract file extension
+                let ext = event.paths.first()
+                    .and_then(|p| p.extension())
+                    .map(|e| e.to_string_lossy().to_lowercase())
+                    .unwrap_or_default();
+
+                event_logger.log(EventData::FileChange {
+                    path: rel_path.clone(),
+                    ext,
+                    change: change.to_string(),
+                });
                 let _ = reload_tx.send(rel_path);
             }
         })?;

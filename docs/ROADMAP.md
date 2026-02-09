@@ -12,7 +12,7 @@ Những gì đã hoàn thành trong v0.1.0:
 - [x] HTTPS với rustls (TLS certificate PEM)
 - [x] Relative path cert/key (resolve từ workspace root)
 - [x] JSONC parser (strip comments + trailing commas)
-- [x] Auto-read `.vscode/settings.json` (liveServer.settings.*)
+- [x] Auto-read `.vscode/settings.json` (hotplate.settings.*)
 - [x] Live reload qua WebSocket (`/__lr` endpoint)
 - [x] HTML injection middleware (inject script trước `</body>`)
 - [x] File watcher OS-native (notify crate, debounce 150ms)
@@ -37,6 +37,7 @@ Cải thiện trải nghiệm lập trình viên hàng ngày:
 - [x] **Full reload flag** — `--full-reload` disable CSS hot swap, luôn reload toàn trang
 - [x] **Watch extensions** — mặc định chỉ watch file UI (html, css, js, ts...), `--watch-ext` hoặc `hotplate.watchExtensions` để tùy chỉnh, `"*"` để watch tất cả
 - [x] **Cache control** — `Cache-Control: no-cache` mặc định cho dev (browser revalidate, 304 vẫn hoạt động)
+- [x] **Event sourcing** — JSONL event log (`.hotplate/events-*.jsonl`) ghi mọi hoạt động: file change, reload, HTTP request, JS error, console, network error. Browser agent bidirectional WebSocket. `--no-event-log` để tắt.
 - [ ] **QR Code** — hiển thị QR code trong terminal cho mobile truy cập nhanh
 - [ ] **Gzip/Brotli** — nén response tự động (opt-in, không cần cho localhost)
 - [ ] **Error overlay** — hiển thị lỗi build đẹp trên browser (như Vite)
@@ -61,13 +62,13 @@ Cải thiện trải nghiệm lập trình viên hàng ngày:
 ### Kiến trúc extension
 
 ```
-vscode-liveserver/
+vscode-hotplate/
 ├── extension.js          # VS Code extension entry — spawn/manage Rust binary
 ├── package.json          # Extension manifest (contributes, activationEvents)
 ├── bin/
-│   ├── liveserver-win.exe
-│   ├── liveserver-linux
-│   └── liveserver-darwin
+│   ├── hotplate-win.exe
+│   ├── hotplate-linux
+│   └── hotplate-darwin
 └── media/
     └── icon.png
 ```
@@ -79,7 +80,7 @@ Extension chỉ là thin wrapper — toàn bộ logic nằm trong Rust binary. K
 | Logic | 100% JavaScript | 100% Rust binary |
 | Extension | JS + express + chokidar | Thin wrapper — spawn binary |
 | Cập nhật logic | Phải cập nhật extension | Chỉ cần thay binary |
-| Chạy ngoài VS Code | ❌ | ✅ `./liveserver` |
+| Chạy ngoài VS Code | ❌ | ✅ `./hotplate` |
 
 ---
 
@@ -93,43 +94,43 @@ Tích hợp MCP (Model Context Protocol) để AI agent (Copilot, Claude, Cursor
 
 ```yaml
 tools:
-  - liveserver_start:
+  - hotplate_start:
       description: Start the live server
       params: { root: string, port: number, https: boolean }
 
-  - liveserver_stop:
+  - hotplate_stop:
       description: Stop the live server
 
-  - liveserver_status:
+  - hotplate_status:
       description: Get current server status
       returns: { running, port, root, connections, https }
 
-  - liveserver_reload:
+  - hotplate_reload:
       description: Force reload all connected browsers
 
-  - liveserver_inject:
+  - hotplate_inject:
       description: Inject custom script/CSS into all pages
       params: { code: string, type: "js" | "css" }
 
-  - liveserver_screenshot:
+  - hotplate_screenshot:
       description: Take screenshot of a specific page
       params: { path: string, viewport: { width, height } }
       returns: { image: base64 }
 
-  - liveserver_console:
+  - hotplate_console:
       description: Get browser console logs from connected clients
       returns: { logs: [{ level, message, source, line }] }
 
-  - liveserver_network:
+  - hotplate_network:
       description: Get network requests from connected browsers
       returns: { requests: [{ url, method, status, duration }] }
 
-  - liveserver_dom:
+  - hotplate_dom:
       description: Query DOM from connected browser
       params: { selector: string, page: string }
       returns: { elements: [{ tag, text, attributes }] }
 
-  - liveserver_eval:
+  - hotplate_eval:
       description: Evaluate JavaScript in connected browser
       params: { code: string, page: string }
       returns: { result: any }
@@ -141,11 +142,11 @@ tools:
 User: "Sửa màu nền header thành đỏ và kiểm tra trên mobile"
 
 AI Agent:
-  1. liveserver_status → đang chạy port 5500
+  1. hotplate_status → đang chạy port 5500
   2. Sửa file CSS
-  3. liveserver_reload → browser tự reload
-  4. liveserver_screenshot { viewport: {375, 812} } → xem kết quả mobile
-  5. liveserver_console → kiểm tra không có lỗi JS
+  3. hotplate_reload → browser tự reload
+  4. hotplate_screenshot { viewport: {375, 812} } → xem kết quả mobile
+  5. hotplate_console → kiểm tra không có lỗi JS
   6. Trả lời user kèm screenshot
 ```
 
@@ -155,7 +156,7 @@ AI Agent:
 ┌──────────┐     stdio/SSE      ┌──────────────────┐
 │ AI Agent │ ◄──────────────── │  MCP Server Layer │
 │ (Claude) │                    │  (built into      │
-└──────────┘                    │   liveserver)     │
+└──────────┘                    │   hotplate)     │
                                 └────────┬─────────┘
                                          │
                               ┌──────────┴──────────┐
@@ -175,8 +176,8 @@ AI Agent:
 
 Khác biệt với Playwright MCP:
 - **Playwright MCP**: Điều khiển browser bên ngoài (launch Chrome, navigate)
-- **Live Server MCP**: Điều khiển từ bên trong (inject code, collect data qua WebSocket đã có sẵn)
-- **Kết hợp**: Playwright navigate → Live Server inject + collect → AI phân tích
+- **Hotplate Server MCP**: Điều khiển từ bên trong (inject code, collect data qua WebSocket đã có sẵn)
+- **Kết hợp**: Playwright navigate → Hotplate inject + collect → AI phân tích
 
 ---
 
@@ -185,12 +186,12 @@ Khác biệt với Playwright MCP:
 Mở rộng thành hệ sinh thái cho cộng đồng:
 
 - [ ] **Plugin system** — Rust trait-based plugins (WASM hoặc dynamic loading)
-- [ ] **Neovim integration** — `:LiveServer start` command
+- [ ] **Neovim integration** — `:hotplate start` command
 - [ ] **Zed extension** — Native integration với Zed editor
 - [ ] **GitHub Action** — `uses: maithanhduyan/hotplate@v1` cho CI preview deploy
 - [ ] **Docker image** — `FROM ghcr.io/maithanhduyan/hotplate:latest`
 - [ ] **Cross-platform binaries** — pre-built cho Windows/Linux/macOS (x64 + ARM64)
-- [ ] **Config file** — `liveserver.toml` ngoài `.vscode/settings.json`
+- [ ] **Config file** — `hotplate.toml` ngoài `.vscode/settings.json`
 - [ ] **Middleware API** — cho phép viết custom middleware bằng Lua/WASM
 
 ### So sánh với alternatives
