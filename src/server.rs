@@ -57,6 +57,26 @@ pub struct ConsoleEntry {
 /// Thread-safe console log buffer shared between server and MCP.
 pub type ConsoleLogBuffer = Arc<std::sync::Mutex<Vec<ConsoleEntry>>>;
 
+// ───────────────────── Network log buffer ─────────────────────
+
+/// Max number of network entries kept in memory for the MCP `hotplate_network` tool.
+const MAX_NETWORK_ENTRIES: usize = 500;
+
+/// A single network request entry captured from the browser.
+#[derive(Clone, Debug, serde::Serialize)]
+pub struct NetworkEntry {
+    pub url: String,
+    pub method: String,
+    pub status: u16,
+    /// Round-trip duration in milliseconds.
+    pub duration: u32,
+    /// ISO-8601 timestamp
+    pub timestamp: String,
+}
+
+/// Thread-safe network log buffer shared between server and MCP.
+pub type NetworkLogBuffer = Arc<std::sync::Mutex<Vec<NetworkEntry>>>;
+
 // ───────────────────── Shared state ─────────────────────
 
 #[derive(Clone)]
@@ -74,6 +94,8 @@ pub struct AppState {
     pub screenshot_tx: tokio::sync::mpsc::UnboundedSender<(String, String)>,
     /// In-memory buffer of recent console logs from connected browsers.
     pub console_logs: ConsoleLogBuffer,
+    /// In-memory buffer of recent network requests from connected browsers.
+    pub network_logs: NetworkLogBuffer,
 }
 
 // ───────────────────── WebSocket handler ─────────────────────
@@ -172,6 +194,8 @@ fn handle_browser_message(text: &str, client_id: &str, state: &Arc<AppState>) {
         status: u16,
         #[serde(default)]
         error: String,
+        #[serde(default)]
+        duration: u32,
     }
 
     let Ok(m) = serde_json::from_str::<BrowserMsg>(text) else { return };
@@ -218,6 +242,15 @@ fn handle_browser_message(text: &str, client_id: &str, state: &Arc<AppState>) {
                 timestamp: now_iso(),
             });
         }
+        "net_request" => {
+            push_network_entry(&state.network_logs, NetworkEntry {
+                url: m.url,
+                method: m.method,
+                status: m.status,
+                duration: m.duration,
+                timestamp: now_iso(),
+            });
+        }
         "net_error" => {
             state.event_logger.log(EventData::NetworkError {
                 url: m.url,
@@ -247,6 +280,17 @@ fn push_console_entry(buf: &ConsoleLogBuffer, entry: ConsoleEntry) {
         if logs.len() >= MAX_CONSOLE_ENTRIES {
             let half = logs.len() / 2;
             logs.drain(..half); // keep recent half
+        }
+        logs.push(entry);
+    }
+}
+
+/// Push a network entry, capping at MAX_NETWORK_ENTRIES.
+fn push_network_entry(buf: &NetworkLogBuffer, entry: NetworkEntry) {
+    if let Ok(mut logs) = buf.lock() {
+        if logs.len() >= MAX_NETWORK_ENTRIES {
+            let half = logs.len() / 2;
+            logs.drain(..half);
         }
         logs.push(entry);
     }
@@ -551,6 +595,7 @@ pub struct ExternalChannels {
     pub reload_tx: broadcast::Sender<String>,
     pub screenshot_tx: tokio::sync::mpsc::UnboundedSender<(String, String)>,
     pub console_logs: ConsoleLogBuffer,
+    pub network_logs: NetworkLogBuffer,
 }
 
 /// Start the HTTP/HTTPS server.
@@ -558,13 +603,14 @@ pub struct ExternalChannels {
 /// If `ext` is `Some`, uses the pre-created channels (MCP mode).
 /// Otherwise creates fresh ones (standalone mode).
 pub async fn run(mut config: Config, ext: Option<ExternalChannels>) -> Result<()> {
-    let (reload_tx, screenshot_tx, console_logs) = match ext {
-        Some(e) => (e.reload_tx, e.screenshot_tx, e.console_logs),
+    let (reload_tx, screenshot_tx, console_logs, network_logs) = match ext {
+        Some(e) => (e.reload_tx, e.screenshot_tx, e.console_logs, e.network_logs),
         None => {
             let (rtx, _) = broadcast::channel::<String>(16);
             let (stx, _) = tokio::sync::mpsc::unbounded_channel::<(String, String)>();
             let clogs = Arc::new(std::sync::Mutex::new(Vec::new()));
-            (rtx, stx, clogs)
+            let nlogs = Arc::new(std::sync::Mutex::new(Vec::new()));
+            (rtx, stx, clogs, nlogs)
         }
     };
 
@@ -592,6 +638,7 @@ pub async fn run(mut config: Config, ext: Option<ExternalChannels>) -> Result<()
         client_counter: Arc::new(AtomicU64::new(0)),
         screenshot_tx,
         console_logs,
+        network_logs,
     });
 
     // Log server start event

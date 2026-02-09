@@ -21,5 +21,6 @@
     //     "git tag": true,
     //     "git push": true
     // }
+    "chat.agent.maxRequests": 5000
 
 }

@@ -72,14 +72,23 @@
       stack: (r && r.stack) || "",
     });
   };
-  // Wrap fetch to catch network errors
+  // Wrap fetch to track network requests
   const _fetch = window.fetch;
   window.fetch = function () {
     const url = (arguments[0] && arguments[0].url) || String(arguments[0]);
     const method = (arguments[1] && arguments[1].method) || "GET";
+    const t0 = performance.now();
     return _fetch
       .apply(this, arguments)
       .then((r) => {
+        const dur = Math.round(performance.now() - t0);
+        send({
+          kind: "net_request",
+          url: url,
+          method: method,
+          status: r.status,
+          duration: dur,
+        });
         if (!r.ok)
           send({
             kind: "net_error",
@@ -91,6 +100,14 @@
         return r;
       })
       .catch((e) => {
+        const dur = Math.round(performance.now() - t0);
+        send({
+          kind: "net_request",
+          url: url,
+          method: method,
+          status: 0,
+          duration: dur,
+        });
         send({
           kind: "net_error",
           url: url,

@@ -65,6 +65,8 @@ pub struct HotplateState {
     pub screenshot_rx: Option<Arc<tokio::sync::Mutex<tokio::sync::mpsc::UnboundedReceiver<(String, String)>>>>,
     /// Shared in-memory buffer of browser console logs.
     pub console_logs: Option<crate::server::ConsoleLogBuffer>,
+    /// Shared in-memory buffer of browser network requests.
+    pub network_logs: Option<crate::server::NetworkLogBuffer>,
 }
 
 // ───────────────────── McpServer ─────────────────────
@@ -306,14 +308,17 @@ impl Tool for StartTool {
         let (reload_tx, _) = broadcast::channel::<String>(16);
         let (screenshot_tx, screenshot_rx) = tokio::sync::mpsc::unbounded_channel::<(String, String)>();
         let console_logs: crate::server::ConsoleLogBuffer = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let network_logs: crate::server::NetworkLogBuffer = Arc::new(std::sync::Mutex::new(Vec::new()));
         st.reload_tx = Some(reload_tx.clone());
         st.screenshot_rx = Some(Arc::new(tokio::sync::Mutex::new(screenshot_rx)));
         st.console_logs = Some(console_logs.clone());
+        st.network_logs = Some(network_logs.clone());
 
         let ext = ExternalChannels {
             reload_tx: reload_tx.clone(),
             screenshot_tx,
             console_logs,
+            network_logs,
         };
 
         let config = Config {
@@ -389,6 +394,7 @@ impl Tool for StopTool {
         st.reload_tx = None;
         st.screenshot_rx = None;
         st.console_logs = None;
+        st.network_logs = None;
 
         Ok(text_response("Server stopped.".into()))
     }
@@ -503,6 +509,84 @@ impl Tool for ConsoleTool {
         let result = json!({
             "total": entries.len(),
             "logs": entries
+        });
+
+        let text = serde_json::to_string_pretty(&result)?;
+
+        if clear {
+            buf.clear();
+        }
+
+        Ok(text_response(text))
+    }
+}
+
+// ───────────────────── hotplate_network ─────────────────────
+
+struct NetworkTool {
+    state: Arc<std::sync::Mutex<HotplateState>>,
+}
+
+impl Tool for NetworkTool {
+    fn definition(&self) -> McpTool {
+        McpTool {
+            name: "hotplate_network".into(),
+            description: "Get network requests from connected browsers.".into(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "method": {
+                        "type": "string",
+                        "description": "Filter by HTTP method (e.g. 'GET', 'POST'). Default: all."
+                    },
+                    "status": {
+                        "type": "integer",
+                        "description": "Filter by exact status code. Default: all."
+                    },
+                    "clear": {
+                        "type": "boolean",
+                        "description": "Clear the buffer after reading. Default: false."
+                    }
+                },
+                "required": []
+            }),
+        }
+    }
+
+    fn execute(&self, params: Value) -> McpResult<Value> {
+        let st = self.state.lock().map_err(|e| format!("Lock: {e}"))?;
+
+        if !st.running.load(Ordering::Relaxed) {
+            return Ok(text_response("Server is not running.".into()));
+        }
+
+        let network_logs = match st.network_logs {
+            Some(ref buf) => buf.clone(),
+            None => return Ok(text_response("Network log buffer not available.".into())),
+        };
+
+        // Drop HotplateState lock before locking network buffer
+        drop(st);
+
+        let method_filter = params.get("method").and_then(|v| v.as_str());
+        let status_filter = params.get("status").and_then(|v| v.as_u64()).map(|s| s as u16);
+        let clear = params.get("clear").and_then(|v| v.as_bool()).unwrap_or(false);
+
+        let mut buf = network_logs.lock().map_err(|e| format!("Lock: {e}"))?;
+
+        let entries: Vec<&crate::server::NetworkEntry> = buf.iter().filter(|e| {
+            if let Some(m) = method_filter {
+                if !e.method.eq_ignore_ascii_case(m) { return false; }
+            }
+            if let Some(s) = status_filter {
+                if e.status != s { return false; }
+            }
+            true
+        }).collect();
+
+        let result = json!({
+            "total": entries.len(),
+            "requests": entries
         });
 
         let text = serde_json::to_string_pretty(&result)?;
@@ -697,6 +781,7 @@ pub fn run_mcp() -> McpResult<()> {
         server_handle: None,
         screenshot_rx: None,
         console_logs: None,
+        network_logs: None,
     }));
 
     let mut server = McpServer::new();
@@ -707,8 +792,9 @@ pub fn run_mcp() -> McpResult<()> {
     server.register_tool(Box::new(InjectTool     { state: state.clone() }));
     server.register_tool(Box::new(ScreenshotTool { state: state.clone() }));
     server.register_tool(Box::new(ConsoleTool    { state: state.clone() }));
+    server.register_tool(Box::new(NetworkTool    { state: state.clone() }));
 
-    eprintln!("[hotplate-mcp] ready — 7 tools registered, waiting for JSON-RPC on stdin…");
+    eprintln!("[hotplate-mcp] ready — 8 tools registered, waiting for JSON-RPC on stdin…");
 
     server.run()
 }

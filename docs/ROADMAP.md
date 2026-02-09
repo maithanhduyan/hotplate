@@ -121,6 +121,10 @@ tools:
       description: Get browser console logs from connected clients
       returns: { logs: [{ level, message, source, line }] }
 
+  - hotplate_server_logs:
+      description: Get server-side logs
+      returns: { logs: [{ timestamp, level, message }] }
+
   - hotplate_network:
       description: Get network requests from connected browsers
       returns: { requests: [{ url, method, status, duration }] }
