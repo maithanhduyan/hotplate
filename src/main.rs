@@ -8,6 +8,9 @@
 
 mod events;
 mod inject;
+#[allow(dead_code)]
+mod jsonrpc;
+mod mcp;
 mod server;
 mod watcher;
 
@@ -89,6 +92,10 @@ struct Cli {
     /// Disable event logging (no .hotplate/logs/events-*.jsonl files)
     #[arg(long, default_value_t = false)]
     no_event_log: bool,
+
+    /// Run as MCP server (stdio JSON-RPC) instead of HTTP server
+    #[arg(long, default_value_t = false)]
+    mcp: bool,
 }
 
 // ───────────────────── Config ─────────────────────
@@ -248,7 +255,7 @@ fn resolve_path(workspace: &Path, p: &str) -> PathBuf {
 /// Returns the paths to the generated cert and key files.
 /// If the files already exist, they are reused without regeneration.
 /// Also migrates old `.cert/` directory layout if found.
-fn generate_self_signed_cert(workspace: &Path) -> Result<(PathBuf, PathBuf)> {
+pub(crate) fn generate_self_signed_cert(workspace: &Path) -> Result<(PathBuf, PathBuf)> {
     let cert_dir = workspace.join(".hotplate").join("certs");
     let cert_path = cert_dir.join("hotplate.crt");
     let key_path = cert_dir.join("hotplate.key");
@@ -474,14 +481,21 @@ fn parse_mounts(raw: &[String], workspace: &Path) -> Vec<(String, PathBuf)> {
 
 // ───────────────────── Main ─────────────────────
 
-#[tokio::main]
-async fn main() -> Result<()> {
+fn main() -> Result<()> {
     // Install rustls crypto provider (ring) before any TLS usage
     rustls::crypto::ring::default_provider()
         .install_default()
         .expect("Failed to install rustls crypto provider");
 
     let cli = Cli::parse();
+
+    // ── MCP mode: stdio JSON-RPC server for AI agents ──
+    if cli.mcp {
+        return mcp::run_mcp().map_err(|e| anyhow::anyhow!("{}", e));
+    }
+
+    // ── Normal mode: HTTP/HTTPS dev server ──
     let config = build_config(cli).context("Failed to load configuration")?;
-    server::run(config).await
+    let rt = tokio::runtime::Runtime::new().context("Failed to create tokio runtime")?;
+    rt.block_on(server::run(config))
 }
