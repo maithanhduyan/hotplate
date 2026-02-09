@@ -14,6 +14,12 @@
 
     // ============ Hotplate Live Server Configuration ============
 
-    "hotplate.https.enable": true
+    // "hotplate.https.enable": true,
+    // "chat.tools.terminal.autoApprove": {
+    //     "git add": true,
+    //     "git commit": true,
+    //     "git tag": true,
+    //     "git push": true
+    // }
 
 }

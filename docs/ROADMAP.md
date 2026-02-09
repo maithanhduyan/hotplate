@@ -23,36 +23,39 @@ Những gì đã hoàn thành trong v0.1.0:
 
 ---
 
-## Phase 2 — Developer Experience
+## Phase 2 — Developer Experience (✅ Done)
 
 Cải thiện trải nghiệm lập trình viên hàng ngày:
 
-- [ ] **CSS Hot Reload** — inject CSS thay đổi mà không reload toàn trang
-- [ ] **SPA fallback** — `--spa` flag: serve `index.html` cho mọi route 404 (React/Vue/Angular)
-- [ ] **Custom headers** — `--header "X-Custom: value"` hoặc từ settings.json
-- [ ] **Proxy pass** — `--proxy /api=http://localhost:8000/api` (thay CORS)
-- [ ] **Open browser** — tự mở trình duyệt khi start (`--open`)
+- [x] **CSS Hot Reload** — inject CSS thay đổi mà không reload toàn trang (`css:<path>` qua WebSocket)
+- [x] **SPA fallback** — `--file index.html`: serve `index.html` cho mọi route 404 (React/Vue/Angular)
+- [x] **Custom headers** — `--header "X-Custom: value"` hoặc từ settings.json
+- [x] **Proxy pass** — `--proxy-base /api --proxy-target http://localhost:8000` (thay CORS)
+- [x] **Open browser** — tự mở trình duyệt khi start (extension detect stdout)
+- [x] **Mount directories** — `--mount "/url:./path"` serve nhiều thư mục trên cùng một server
+- [x] **Auto-generate HTTPS cert** — `--https` flag tự tạo self-signed cert với rcgen
+- [x] **Full reload flag** — `--full-reload` disable CSS hot swap, luôn reload toàn trang
 - [ ] **QR Code** — hiển thị QR code trong terminal cho mobile truy cập nhanh
 - [ ] **Gzip/Brotli** — nén response tự động
-- [ ] **Cache control** — `Cache-Control: no-cache` cho dev, configurable cho prod
+- [x] **Cache control** — `Cache-Control: no-cache` mặc định cho dev (browser revalidate, 304 vẫn hoạt động)
 - [ ] **Error overlay** — hiển thị lỗi build đẹp trên browser (như Vite)
-- [ ] **Multi-root workspace** — serve nhiều thư mục trên cùng một port
 
 ---
 
-## Phase 3 — VS Code Extension
+## Phase 3 — VS Code Extension (✅ Done)
 
 Đóng gói thành VS Code extension chính thức, thay thế Live Server cũ:
 
-- [ ] **Extension wrapper** — VS Code extension gọi Rust binary bên trong
-- [ ] **Status bar** — nút Go Live / Go Offline trên thanh trạng thái
-- [ ] **Settings UI** — contribute configuration schema (`contributes.configuration`)
-- [ ] **Output channel** — log server output vào VS Code Output panel
-- [ ] **Auto-detect workspace** — tự lấy `workspaceFolders[0]` làm workspace
-- [ ] **Multi-workspace** — mỗi workspace folder có server riêng
-- [ ] **Command palette** — `Live Server: Start`, `Stop`, `Restart`, `Open Browser`
-- [ ] **Context menu** — Right-click HTML file → "Open with Live Server"
-- [ ] **Marketplace publish** — `yakiniku.liveserver` trên VS Code Marketplace
+- [x] **Extension wrapper** — VS Code extension (~600 LOC) gọi Rust binary bên trong
+- [x] **Status bar** — nút `$(flame) Go Live` / `Port: XXXX` trên thanh trạng thái
+- [x] **Settings UI** — 16 settings trong `contributes.configuration` (port, host, root, HTTPS, proxy, SPA, mount...)
+- [x] **Output channel** — `Hotplate` output channel, pipe stdout/stderr từ binary
+- [x] **Auto-detect workspace** — tự lấy `workspaceFolders[0]`, hỗ trợ multi-root QuickPick
+- [x] **Multi-workspace** — hỗ trợ multi-root workspace với `multiRootWorkspaceName` setting
+- [x] **Command palette** — 6 commands: Start, Stop, Restart, Open Browser, Open File, Change Workspace
+- [x] **Context menu** — Right-click HTML → "Open with Hotplate", Right-click folder → "Start Server"
+- [x] **Keybindings** — `Alt+L Alt+O` (start), `Alt+L Alt+C` (stop) với `when` clause
+- [x] **Marketplace publish** — `maithanhduyan.hotplate` trên VS Code Marketplace
 
 ### Kiến trúc extension
 
@@ -197,11 +200,12 @@ Mở rộng thành hệ sinh thái cho cộng đồng:
 | Binary size | ~50MB (Node) | ~80MB (Node) | ~7.5MB |
 | Startup | ~800ms | ~300ms | ~10ms |
 | HTTPS | ✅ (buggy) | ✅ | ✅ (rustls) |
-| HMR | ❌ | ✅ (JS only) | Phase 2 (CSS) |
-| SPA fallback | ❌ | ✅ | Phase 2 |
+| HMR | ❌ | ✅ (JS only) | ✅ (CSS hot swap) |
+| SPA fallback | ❌ | ✅ | ✅ |
+| Proxy pass | ❌ | ✅ | ✅ |
 | MCP support | ❌ | ❌ | Phase 4 |
 | No runtime needed | ❌ | ❌ | ✅ |
-| VS Code extension | ✅ | ❌ | Phase 3 |
+| VS Code extension | ✅ | ❌ | ✅ |
 | Framework agnostic | ✅ | ❌ (Vite only) | ✅ |
 
 ---
@@ -209,9 +213,9 @@ Mở rộng thành hệ sinh thái cho cộng đồng:
 ## Timeline dự kiến
 
 ```
-2026 Q1  ████████████ Phase 1 — Core (DONE)
-2026 Q2  ████████████ Phase 2 — DX (CSS hot reload, proxy, SPA)
-2026 Q3  ████████████ Phase 3 — VS Code Extension
+2026 Q1  ████████████ Phase 1 — Core (DONE ✅)
+2026 Q2  ████████████ Phase 2 — DX (DONE ✅ — CSS hot swap, proxy, SPA, mount, auto-cert)
+2026 Q3  ████████████ Phase 3 — VS Code Extension (DONE ✅ — 6 commands, context menu, keybindings)
 2026 Q4  ████████████ Phase 4 — MCP Server
 2027 Q1  ████████████ Phase 5 — Ecosystem
 ```

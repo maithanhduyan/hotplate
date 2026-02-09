@@ -22,6 +22,7 @@ use tokio::sync::broadcast;
 use tower_http::{
     cors::{Any, CorsLayer},
     services::{ServeDir, ServeFile},
+    set_header::SetResponseHeaderLayer,
 };
 
 /// Built-in welcome page shown when root directory has no index.html.
@@ -173,7 +174,14 @@ fn build_router(state: Arc<AppState>, config: &Config) -> Router {
         }
     }
 
-    app.layer(cors).with_state(state)
+    // Cache-Control: no-cache — browser must revalidate every request (304 still works).
+    // Prevents stale JS/images after live-reload triggers location.reload().
+    app.layer(SetResponseHeaderLayer::overriding(
+        header::CACHE_CONTROL,
+        axum::http::HeaderValue::from_static("no-cache"),
+    ))
+    .layer(cors)
+    .with_state(state)
 }
 
 // ───────────────────── Welcome page handler ─────────────────────

@@ -218,8 +218,8 @@ cargo build --release
 | Phase | Timeline | Status |
 |-------|----------|--------|
 | **Core** — Static serving, HTTPS, live reload, file watcher, CLI | 2026 Q1 | ✅ Done |
-| **DX** — CSS hot reload, SPA fallback, proxy, custom headers, mount | 2026 Q2 | 🔧 In Progress |
-| **VS Code Extension** — Marketplace publish, status bar, context menu | 2026 Q3 | 📋 Planned |
+| **DX** — CSS hot reload, SPA fallback, proxy, custom headers, mount, auto-cert | 2026 Q2 | ✅ Done |
+| **VS Code Extension** — Status bar, 6 commands, context menu, keybindings, settings UI | 2026 Q3 | ✅ Done |
 | **MCP Server** — AI-controllable via Model Context Protocol | 2026 Q4 | 📋 Planned |
 | **Ecosystem** — Plugin system, Neovim/Zed, GitHub Action, Docker | 2027 Q1 | 📋 Planned |
 
