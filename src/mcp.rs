@@ -69,6 +69,8 @@ pub struct HotplateState {
     pub network_logs: Option<crate::server::NetworkLogBuffer>,
     /// Receiver for DOM query responses from the browser (id, json_data).
     pub dom_rx: Option<Arc<tokio::sync::Mutex<tokio::sync::mpsc::UnboundedReceiver<(String, String)>>>>,
+    /// Receiver for eval responses from the browser (id, result_json).
+    pub eval_rx: Option<Arc<tokio::sync::Mutex<tokio::sync::mpsc::UnboundedReceiver<(String, String)>>>>,
 }
 
 // ───────────────────── McpServer ─────────────────────
@@ -310,11 +312,13 @@ impl Tool for StartTool {
         let (reload_tx, _) = broadcast::channel::<String>(16);
         let (screenshot_tx, screenshot_rx) = tokio::sync::mpsc::unbounded_channel::<(String, String)>();
         let (dom_tx, dom_rx) = tokio::sync::mpsc::unbounded_channel::<(String, String)>();
+        let (eval_tx, eval_rx) = tokio::sync::mpsc::unbounded_channel::<(String, String)>();
         let console_logs: crate::server::ConsoleLogBuffer = Arc::new(std::sync::Mutex::new(Vec::new()));
         let network_logs: crate::server::NetworkLogBuffer = Arc::new(std::sync::Mutex::new(Vec::new()));
         st.reload_tx = Some(reload_tx.clone());
         st.screenshot_rx = Some(Arc::new(tokio::sync::Mutex::new(screenshot_rx)));
         st.dom_rx = Some(Arc::new(tokio::sync::Mutex::new(dom_rx)));
+        st.eval_rx = Some(Arc::new(tokio::sync::Mutex::new(eval_rx)));
         st.console_logs = Some(console_logs.clone());
         st.network_logs = Some(network_logs.clone());
 
@@ -322,6 +326,7 @@ impl Tool for StartTool {
             reload_tx: reload_tx.clone(),
             screenshot_tx,
             dom_tx,
+            eval_tx,
             console_logs,
             network_logs,
         };
@@ -399,6 +404,7 @@ impl Tool for StopTool {
         st.reload_tx = None;
         st.screenshot_rx = None;
         st.dom_rx = None;
+        st.eval_rx = None;
         st.console_logs = None;
         st.network_logs = None;
 
@@ -925,6 +931,118 @@ impl Tool for DomTool {
     }
 }
 
+// ───────────────────── hotplate_eval ─────────────────────
+
+struct EvalTool {
+    state: Arc<std::sync::Mutex<HotplateState>>,
+}
+
+impl Tool for EvalTool {
+    fn definition(&self) -> McpTool {
+        McpTool {
+            name: "hotplate_eval".into(),
+            description: "Evaluate JavaScript expression on page or element".into(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "function": {
+                        "type": "string",
+                        "description": "() => { /* code */ } or (element) => { /* code */ } when element is provided"
+                    },
+                    "ref": {
+                        "type": "string",
+                        "description": "Exact target element reference from the page snapshot"
+                    },
+                    "element": {
+                        "type": "string",
+                        "description": "Human-readable element description used to obtain permission to interact with the element"
+                    }
+                },
+                "required": ["function"]
+            }),
+        }
+    }
+
+    fn execute(&self, params: Value) -> McpResult<Value> {
+        let st = self.state.lock().map_err(|e| format!("Lock: {e}"))?;
+
+        if !st.running.load(Ordering::Relaxed) {
+            return Ok(text_response("Server is not running.".into()));
+        }
+
+        let code = params.get("function")
+            .and_then(|v| v.as_str())
+            .ok_or("Missing 'function' parameter")?;
+
+        let request_id = format!("eval_{}", std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis());
+
+        // Send eval request to browser: "eval:{id}:{code}"
+        let msg = format!("eval:{}:{}", request_id, code);
+        let tx = match st.reload_tx {
+            Some(ref tx) => tx.clone(),
+            None => return Ok(text_response("No reload channel available.".into())),
+        };
+        match tx.send(msg) {
+            Ok(0) | Err(_) => {
+                return Ok(text_response("No browsers connected to evaluate code.".into()));
+            }
+            _ => {}
+        }
+
+        // Get eval_rx and rt_handle to wait for response
+        let eval_rx = match st.eval_rx {
+            Some(ref rx) => rx.clone(),
+            None => return Ok(text_response("Eval channel not available.".into())),
+        };
+        let rt_handle = st.rt_handle.clone();
+        let rid = request_id.clone();
+
+        // Drop the lock before blocking wait
+        drop(st);
+
+        // Wait for the browser response with a timeout
+        let result = rt_handle.block_on(async {
+            let mut rx = eval_rx.lock().await;
+            tokio::time::timeout(Duration::from_secs(10), async {
+                while let Some((id, data)) = rx.recv().await {
+                    if id == rid {
+                        return Some(data);
+                    }
+                }
+                None
+            }).await
+        });
+
+        match result {
+            Ok(Some(json_data)) => {
+                // Try to parse as JSON first
+                let parsed: Value = serde_json::from_str(&json_data)
+                    .unwrap_or_else(|_| json!(json_data));
+
+                // Check if it's an error response
+                if let Some(err) = parsed.get("error").and_then(|v| v.as_str()) {
+                    let stack = parsed.get("stack").and_then(|v| v.as_str()).unwrap_or("");
+                    let result = json!({
+                        "error": err,
+                        "stack": stack
+                    });
+                    return Ok(text_response(serde_json::to_string_pretty(&result)?));
+                }
+
+                let result = json!({
+                    "result": parsed
+                });
+                Ok(text_response(serde_json::to_string_pretty(&result)?))
+            }
+            Ok(None) => Ok(text_response("Eval returned no data.".into())),
+            Err(_) => Ok(text_response("Eval timed out after 10s. Is a browser page open?".into())),
+        }
+    }
+}
+
 // ───────────────────── hotplate_screenshot ─────────────────────
 
 struct ScreenshotTool {
@@ -1048,6 +1166,7 @@ pub fn run_mcp() -> McpResult<()> {
         console_logs: None,
         network_logs: None,
         dom_rx: None,
+        eval_rx: None,
     }));
 
     let mut server = McpServer::new();
@@ -1061,8 +1180,9 @@ pub fn run_mcp() -> McpResult<()> {
     server.register_tool(Box::new(NetworkTool    { state: state.clone() }));
     server.register_tool(Box::new(ServerLogsTool { state: state.clone() }));
     server.register_tool(Box::new(DomTool        { state: state.clone() }));
+    server.register_tool(Box::new(EvalTool       { state: state.clone() }));
 
-    eprintln!("[hotplate-mcp] ready — 10 tools registered, waiting for JSON-RPC on stdin…");
+    eprintln!("[hotplate-mcp] ready — 11 tools registered, waiting for JSON-RPC on stdin…");
 
     server.run()
 }

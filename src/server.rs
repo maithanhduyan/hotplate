@@ -98,6 +98,8 @@ pub struct AppState {
     pub network_logs: NetworkLogBuffer,
     /// Channel for browser → MCP DOM query responses (id, json_data).
     pub dom_tx: tokio::sync::mpsc::UnboundedSender<(String, String)>,
+    /// Channel for browser → MCP eval responses (id, result_json).
+    pub eval_tx: tokio::sync::mpsc::UnboundedSender<(String, String)>,
 }
 
 // ───────────────────── WebSocket handler ─────────────────────
@@ -119,8 +121,8 @@ async fn handle_socket(mut socket: WebSocket, state: Arc<AppState>) {
             result = rx.recv() => {
                 let Ok(changed_path) = result else { break };
 
-                // Inject, screenshot, and dom_query messages are forwarded as-is to the browser
-                let msg = if changed_path.starts_with("inject:") || changed_path.starts_with("screenshot:") || changed_path.starts_with("dom_query:") {
+                // Inject, screenshot, dom_query, and eval messages are forwarded as-is to the browser
+                let msg = if changed_path.starts_with("inject:") || changed_path.starts_with("screenshot:") || changed_path.starts_with("dom_query:") || changed_path.starts_with("eval:") {
                     changed_path
                 } else {
                     // File-change reload logic
@@ -270,6 +272,11 @@ fn handle_browser_message(text: &str, client_id: &str, state: &Arc<AppState>) {
             // Browser sends: {kind:"dom_response", url: id, msg: json_data}
             // Route to MCP DomTool via mpsc channel
             let _ = state.dom_tx.send((m.url, m.msg));
+        }
+        "eval_response" => {
+            // Browser sends: {kind:"eval_response", url: id, msg: result_json}
+            // Route to MCP EvalTool via mpsc channel
+            let _ = state.eval_tx.send((m.url, m.msg));
         }
         _ => {} // unknown kind — silently skip
     }
@@ -602,6 +609,7 @@ pub struct ExternalChannels {
     pub reload_tx: broadcast::Sender<String>,
     pub screenshot_tx: tokio::sync::mpsc::UnboundedSender<(String, String)>,
     pub dom_tx: tokio::sync::mpsc::UnboundedSender<(String, String)>,
+    pub eval_tx: tokio::sync::mpsc::UnboundedSender<(String, String)>,
     pub console_logs: ConsoleLogBuffer,
     pub network_logs: NetworkLogBuffer,
 }
@@ -611,15 +619,16 @@ pub struct ExternalChannels {
 /// If `ext` is `Some`, uses the pre-created channels (MCP mode).
 /// Otherwise creates fresh ones (standalone mode).
 pub async fn run(mut config: Config, ext: Option<ExternalChannels>) -> Result<()> {
-    let (reload_tx, screenshot_tx, dom_tx, console_logs, network_logs) = match ext {
-        Some(e) => (e.reload_tx, e.screenshot_tx, e.dom_tx, e.console_logs, e.network_logs),
+    let (reload_tx, screenshot_tx, dom_tx, eval_tx, console_logs, network_logs) = match ext {
+        Some(e) => (e.reload_tx, e.screenshot_tx, e.dom_tx, e.eval_tx, e.console_logs, e.network_logs),
         None => {
             let (rtx, _) = broadcast::channel::<String>(16);
             let (stx, _) = tokio::sync::mpsc::unbounded_channel::<(String, String)>();
             let (dtx, _) = tokio::sync::mpsc::unbounded_channel::<(String, String)>();
+            let (etx, _) = tokio::sync::mpsc::unbounded_channel::<(String, String)>();
             let clogs = Arc::new(std::sync::Mutex::new(Vec::new()));
             let nlogs = Arc::new(std::sync::Mutex::new(Vec::new()));
-            (rtx, stx, dtx, clogs, nlogs)
+            (rtx, stx, dtx, etx, clogs, nlogs)
         }
     };
 
@@ -647,6 +656,7 @@ pub async fn run(mut config: Config, ext: Option<ExternalChannels>) -> Result<()
         client_counter: Arc::new(AtomicU64::new(0)),
         screenshot_tx,
         dom_tx,
+        eval_tx,
         console_logs,
         network_logs,
     });

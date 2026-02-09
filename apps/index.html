@@ -353,15 +353,15 @@
     <div class="container">
         <div class="hero-inner">
             <div>
-                <div class="hero-badge">🚀 v0.1.1 — Core Released</div>
+                <div class="hero-badge">🚀 v0.1.3 — MCP Server Complete</div>
                 <h1>
                     Dev server that's<br>
                     <span class="highlight">blazingly fast.</span>
                 </h1>
                 <p class="hero-desc">
                     Hotplate is a lightning-fast HTTPS live-reload dev server
-                    written in Rust. Single binary, ~7.5MB, zero runtime dependency.
-                    Built to replace Live Server — for good.
+                    written in Rust. Single binary, ~8MB, zero runtime dependency.
+                    Built-in MCP server with 11 AI tools. Replaces Live Server — for good.
                 </p>
                 <div class="hero-buttons">
                     <a href="https://github.com/maithanhduyan/hotplate/releases" class="btn btn-primary">
@@ -382,7 +382,7 @@
                 <div class="terminal-body">
                     <div><span class="prompt">$</span> <span class="cmd">hotplate --root ./apps --port 5500</span></div>
                     <br>
-                    <div><span class="success">  🔥 Hotplate v0.1.1</span></div>
+                    <div><span class="success">  🔥 Hotplate v0.1.3</span></div>
                     <div><span class="comment">  ─────────────────────────────────────</span></div>
                     <div><span class="cmd">  🔒 HTTPS enabled (rustls)</span></div>
                     <div><span class="cmd">  📁 Serving </span><span class="info">./apps</span></div>
@@ -404,7 +404,7 @@
     <div class="container">
         <div class="stats-grid">
             <div>
-                <div class="stat-num">~7.5MB</div>
+                <div class="stat-num">~8MB</div>
                 <div class="stat-label">Binary Size</div>
             </div>
             <div>
@@ -412,8 +412,8 @@
                 <div class="stat-label">Startup Time</div>
             </div>
             <div>
-                <div class="stat-num">~3MB</div>
-                <div class="stat-label">RAM Usage (idle)</div>
+                <div class="stat-num">11</div>
+                <div class="stat-label">MCP AI Tools</div>
             </div>
             <div>
                 <div class="stat-num">0</div>
@@ -474,9 +474,9 @@
                 <p>Ignores <code>.git</code>, <code>node_modules</code>, <code>__pycache__</code>, <code>.pyc</code> automatically. No unnecessary reloads.</p>
             </div>
             <div class="feature-card reveal">
-                <div class="feature-icon">🧩</div>
-                <h3>VS Code Extension</h3>
-                <p>Thin JS wrapper around the Rust binary. Go Live button, output channel, context menu — all the DX you love.</p>
+                <div class="feature-icon">�</div>
+                <h3>MCP Server</h3>
+                <p>11 AI tools via Model Context Protocol. Start/stop server, inject code, screenshot, query DOM, eval JS — all from your AI agent.</p>
             </div>
         </div>
     </div>
@@ -550,6 +550,12 @@
                         <td class="hot-col">✅ Phase 3</td>
                     </tr>
                     <tr>
+                        <td>MCP (AI Tools)</td>
+                        <td><span class="cross">❌</span></td>
+                        <td><span class="cross">❌</span></td>
+                        <td class="hot-col">✅ 11 tools</td>
+                    </tr>
+                    <tr>
                         <td>Framework Agnostic</td>
                         <td><span class="check">✅</span></td>
                         <td><span class="cross">❌</span></td>
@@ -586,14 +592,18 @@
                     <span class="arch-tag">Notify</span>
                     <span class="arch-tag">Tower</span>
                     <span class="arch-tag">Clap</span>
+                    <span class="arch-tag">MCP</span>
                 </div>
             </div>
             <div class="arch-card reveal">
                 <div><span class="folder">src/</span></div>
                 <div>&nbsp; ├── <span class="folder">main.rs</span> &nbsp;&nbsp;&nbsp;&nbsp;<span class="desc"># CLI + JSONC config loader</span></div>
                 <div>&nbsp; ├── <span class="folder">server.rs</span> &nbsp;&nbsp;<span class="desc"># Axum router + HTTPS/HTTP + WS</span></div>
+                <div>&nbsp; ├── <span class="folder">mcp.rs</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="desc"># MCP server — 11 AI tools</span></div>
+                <div>&nbsp; ├── <span class="folder">events.rs</span> &nbsp;&nbsp;<span class="desc"># JSONL event logger</span></div>
                 <div>&nbsp; ├── <span class="folder">watcher.rs</span> &nbsp;<span class="desc"># File watcher + debounce</span></div>
-                <div>&nbsp; └── <span class="folder">inject.rs</span> &nbsp;&nbsp;<span class="desc"># HTML middleware — inject LR</span></div>
+                <div>&nbsp; ├── <span class="folder">inject.rs</span> &nbsp;&nbsp;<span class="desc"># HTML middleware — inject LR</span></div>
+                <div>&nbsp; └── <span class="folder">livereload.js</span> <span class="desc"># Browser agent (WS)</span></div>
                 <br>
                 <div><span class="folder">vscode-extension/</span></div>
                 <div>&nbsp; ├── <span class="folder">extension.js</span> <span class="desc"># Spawn &amp; manage binary</span></div>
@@ -616,29 +626,29 @@
                 <div class="timeline-dot done">✓</div>
                 <div class="time">2026 Q1 — Done</div>
                 <h3>Phase 1 — Core</h3>
-                <p>Static file serving, HTTPS/rustls, JSONC parser, live reload, file watcher, CLI, LAN auto-detect. Single binary ~7.5MB.</p>
+                <p>Static file serving, HTTPS/rustls, JSONC parser, live reload, file watcher, CLI, LAN auto-detect. Single binary ~8MB.</p>
             </div>
             <div class="timeline-item reveal">
-                <div class="timeline-dot next">→</div>
-                <div class="time">2026 Q2 — In Progress</div>
+                <div class="timeline-dot done">✓</div>
+                <div class="time">2026 Q2 — Done</div>
                 <h3>Phase 2 — Developer Experience</h3>
-                <p>CSS hot reload, SPA fallback, custom headers, proxy pass, auto-open browser, QR code, Gzip/Brotli compression.</p>
+                <p>CSS hot reload, SPA fallback, custom headers, proxy pass, auto-open browser, mount directories, auto-generate HTTPS cert, event sourcing.</p>
             </div>
             <div class="timeline-item reveal">
-                <div class="timeline-dot future"></div>
-                <div class="time">2026 Q3</div>
+                <div class="timeline-dot done">✓</div>
+                <div class="time">2026 Q3 — Done</div>
                 <h3>Phase 3 — VS Code Extension</h3>
                 <p>Status bar Go Live button, settings UI, output channel, context menu, Marketplace publish as <code>maithanhduyan.hotplate</code>.</p>
             </div>
             <div class="timeline-item reveal">
-                <div class="timeline-dot future"></div>
-                <div class="time">2026 Q4</div>
-                <h3>Phase 4 — MCP Server</h3>
-                <p>AI-controllable via Model Context Protocol. Tools for start/stop, reload, screenshot, console logs, DOM query, eval.</p>
+                <div class="timeline-dot done">✓</div>
+                <div class="time">2026 Q4 — Done</div>
+                <h3>Phase 4 — MCP Server (11 tools)</h3>
+                <p>AI-controllable via Model Context Protocol. 11 tools: start/stop, reload, inject, screenshot, console, network, server logs, DOM query, eval.</p>
             </div>
             <div class="timeline-item reveal">
-                <div class="timeline-dot future"></div>
-                <div class="time">2027 Q1</div>
+                <div class="timeline-dot next">→</div>
+                <div class="time">2027 Q1 — Next</div>
                 <h3>Phase 5 — Ecosystem</h3>
                 <p>Plugin system, Neovim/Zed integration, GitHub Action, Docker image, cross-platform binaries, middleware API.</p>
             </div>
@@ -676,7 +686,7 @@
             <a href="https://github.com/maithanhduyan">Mai Thành Duy An</a> — Open Source under MIT License
         </p>
         <p style="margin-top: .5rem; opacity: .6;">
-            Hotplate v0.1.1 — A blazingly fast live-reload dev server powered by Rust
+            Hotplate v0.1.3 — A blazingly fast live-reload dev server powered by Rust
         </p>
     </div>
 </footer>

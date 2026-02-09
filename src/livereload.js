@@ -203,6 +203,26 @@
         } catch (err) {
           send({kind:"dom_response", url: id, msg: JSON.stringify({error: err.message})});
         }
+      } else if (d.startsWith("eval:")) {
+        // eval:{id}:{code}
+        const idx = d.indexOf(":", 5);
+        const id = d.slice(5, idx);
+        const code = d.slice(idx + 1);
+        (async () => {
+          try {
+            const fn = new Function("return (async () => {" + code + "})()");
+            const result = await fn();
+            let serialized;
+            try {
+              serialized = JSON.stringify(result);
+            } catch (_) {
+              serialized = String(result);
+            }
+            send({kind:"eval_response", url: id, msg: serialized || "undefined"});
+          } catch (err) {
+            send({kind:"eval_response", url: id, msg: JSON.stringify({error: err.message, stack: err.stack || ""})});
+          }
+        })();
       }
     };
     ws.onclose = () => {

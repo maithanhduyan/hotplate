@@ -3,7 +3,7 @@
 [![Deploy to GitHub Pages](https://github.com/maithanhduyan/hotplate/actions/workflows/static.yml/badge.svg)](https://github.com/maithanhduyan/hotplate/actions/workflows/static.yml)
 [![Release](https://github.com/maithanhduyan/hotplate/actions/workflows/release.yml/badge.svg)](https://github.com/maithanhduyan/hotplate/actions/workflows/release.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.1.0-orange.svg)](https://github.com/maithanhduyan/hotplate/releases)
+[![Version](https://img.shields.io/badge/version-0.1.3-orange.svg)](https://github.com/maithanhduyan/hotplate/releases)
 
 **⚡ Lightning-fast HTTPS live-reload dev server powered by Rust.**
 
@@ -46,6 +46,9 @@ Hotplate fixes all of this with a single ~7.5MB binary:
 - 📱 **SPA fallback** — Serve `index.html` for all 404 routes (React/Vue/Angular)
 - 📂 **Mount directories** — Serve multiple directories on one server
 - 🧩 **VS Code extension** — Go Live button, context menu, output channel
+- 🤖 **MCP Server** — AI-controllable via Model Context Protocol (11 tools)
+- 📊 **Event sourcing** — JSONL event logs for all server activity
+- 🎨 **Watch extensions** — Configurable file types to watch, `"*"` for all
 
 ---
 
@@ -85,6 +88,43 @@ hotplate --full-reload
 2. Click **🔥 Go Live** in the status bar — or use `Alt+L Alt+O`
 3. Right-click any HTML file → **Open with Hotplate**
 4. Stop with `Alt+L Alt+C`
+
+### MCP Mode (AI Agents)
+
+Hotplate includes a built-in MCP server for AI-driven development:
+
+```bash
+hotplate --mcp   # runs MCP stdio server (JSON-RPC 2.0)
+```
+
+**11 MCP tools** let AI agents control the server and inspect the browser:
+
+| Tool | Description |
+|------|-------------|
+| `hotplate_start` | Start the live server (background) |
+| `hotplate_stop` | Stop the running server |
+| `hotplate_status` | Get server status (port, root, HTTPS, etc.) |
+| `hotplate_reload` | Force-reload all connected browsers |
+| `hotplate_inject` | Inject JS/CSS into all connected pages |
+| `hotplate_screenshot` | Take screenshot from connected browser |
+| `hotplate_console` | Get browser console logs (warn/error/js_error) |
+| `hotplate_network` | Get network requests (url, method, status, duration) |
+| `hotplate_server_logs` | Get server-side event logs (JSONL sessions) |
+| `hotplate_dom` | Query DOM using CSS selector |
+| `hotplate_eval` | Evaluate JavaScript in connected browser |
+
+Configure in `.vscode/mcp.json`:
+
+```jsonc
+{
+  "servers": {
+    "hotplate": {
+      "command": "${workspaceFolder}/vscode-extension/bin/hotplate-win32-x64.exe",
+      "args": ["--mcp"]
+    }
+  }
+}
+```
 
 ---
 
@@ -169,9 +209,13 @@ Hotplate reads settings from `.vscode/settings.json` (JSONC supported):
 ```
 src/
 ├── main.rs        # CLI (clap) + JSONC config loader
-├── server.rs      # Axum router + HTTPS/HTTP + WebSocket
+├── server.rs      # Axum router + HTTPS/HTTP + WebSocket + MCP channels
+├── mcp.rs         # MCP stdio server — 11 JSON-RPC tools for AI agents
+├── events.rs      # JSONL event logger (file change, reload, errors...)
 ├── watcher.rs     # File system watcher (notify) + debounce
-└── inject.rs      # HTML middleware — inject livereload script
+├── inject.rs      # HTML middleware — inject livereload script
+├── livereload.js  # Browser-side: WebSocket + console/network/DOM agent
+└── jsonrpc.rs     # JSON-RPC 2.0 types
 
 vscode-extension/
 ├── extension.js   # VS Code extension — spawn & manage binary
@@ -220,7 +264,7 @@ cargo build --release
 | **Core** — Static serving, HTTPS, live reload, file watcher, CLI | 2026 Q1 | ✅ Done |
 | **DX** — CSS hot reload, SPA fallback, proxy, custom headers, mount, auto-cert | 2026 Q2 | ✅ Done |
 | **VS Code Extension** — Status bar, 6 commands, context menu, keybindings, settings UI | 2026 Q3 | ✅ Done |
-| **MCP Server** — AI-controllable via Model Context Protocol | 2026 Q4 | 📋 Planned |
+| **MCP Server** — AI-controllable via Model Context Protocol (11/11 tools) | 2026 Q4 | ✅ Done |
 | **Ecosystem** — Plugin system, Neovim/Zed, GitHub Action, Docker | 2027 Q1 | 📋 Planned |
 
 See [docs/ROADMAP.md](docs/ROADMAP.md) for details.

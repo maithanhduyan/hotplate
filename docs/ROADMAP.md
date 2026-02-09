@@ -84,13 +84,25 @@ Extension chỉ là thin wrapper — toàn bộ logic nằm trong Rust binary. K
 
 ---
 
-## Phase 4 — MCP Server (AI-driven development)
+## Phase 4 — MCP Server (AI-driven development) — ✅ Done
 
 > 🎯 **Mục tiêu lớn**: Biến live server thành AI-controllable thông qua Model Context Protocol
 
 Tích hợp MCP (Model Context Protocol) để AI agent (Copilot, Claude, Cursor) có thể điều khiển live server:
 
-### MCP Tools
+### MCP Tools (11/11 ✅)
+
+- [x] `hotplate_start` — Start the live server (background)
+- [x] `hotplate_stop` — Stop the live server
+- [x] `hotplate_status` — Get current server status
+- [x] `hotplate_reload` — Force reload all connected browsers
+- [x] `hotplate_inject` — Inject custom script/CSS into all pages
+- [x] `hotplate_screenshot` — Take screenshot of a specific page
+- [x] `hotplate_console` — Get browser console logs from connected clients
+- [x] `hotplate_network` — Get network requests from connected browsers
+- [x] `hotplate_server_logs` — Get server-side event logs (JSONL)
+- [x] `hotplate_dom` — Query DOM from connected browser using CSS selector
+- [x] `hotplate_eval` — Evaluate JavaScript in connected browser
 
 ```yaml
 tools:
@@ -222,7 +234,7 @@ Mở rộng thành hệ sinh thái cho cộng đồng:
 2026 Q1  ████████████ Phase 1 — Core (DONE ✅)
 2026 Q2  ████████████ Phase 2 — DX (DONE ✅ — CSS hot swap, proxy, SPA, mount, auto-cert)
 2026 Q3  ████████████ Phase 3 — VS Code Extension (DONE ✅ — 6 commands, context menu, keybindings)
-2026 Q4  ████████████ Phase 4 — MCP Server
+2026 Q4  ████████████ Phase 4 — MCP Server (DONE ✅ — 11 tools)
 2027 Q1  ████████████ Phase 5 — Ecosystem
 ```
 
