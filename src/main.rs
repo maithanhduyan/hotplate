@@ -497,5 +497,5 @@ fn main() -> Result<()> {
     // ── Normal mode: HTTP/HTTPS dev server ──
     let config = build_config(cli).context("Failed to load configuration")?;
     let rt = tokio::runtime::Runtime::new().context("Failed to create tokio runtime")?;
-    rt.block_on(server::run(config))
+    rt.block_on(server::run(config, None))
 }

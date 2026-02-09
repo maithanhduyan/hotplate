@@ -116,6 +116,54 @@
       const d = e.data;
       if (d === "reload") location.reload();
       else if (d.startsWith("css:")) reloadCSS(d.slice(4));
+      else if (d.startsWith("inject:js:")) {
+        try {
+          const s = document.createElement("script");
+          s.textContent = d.slice(10);
+          document.head.appendChild(s);
+        } catch (err) { console.error("[hotplate inject]", err); }
+      } else if (d.startsWith("inject:css:")) {
+        try {
+          const s = document.createElement("style");
+          s.textContent = d.slice(11);
+          document.head.appendChild(s);
+        } catch (err) { console.error("[hotplate inject]", err); }
+      } else if (d.startsWith("screenshot:")) {
+        // screenshot:{id}:{width}x{height}
+        const parts = d.slice(11).split(":");
+        const id = parts[0];
+        const dims = (parts[1] || "").split("x");
+        const w = parseInt(dims[0]) || innerWidth;
+        const h = parseInt(dims[1]) || innerHeight;
+        (async () => {
+          try {
+            const c = document.createElement("canvas");
+            c.width = w; c.height = h;
+            const ctx = c.getContext("2d");
+            ctx.fillStyle = "#fff";
+            ctx.fillRect(0, 0, w, h);
+            // Use html-to-image approach: serialize DOM to SVG foreignObject
+            const html = document.documentElement.outerHTML;
+            const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}"><foreignObject width="100%" height="100%"><div xmlns="http://www.w3.org/1999/xhtml">${html}</div></foreignObject></svg>`;
+            const blob = new Blob([svg], {type: "image/svg+xml;charset=utf-8"});
+            const url = URL.createObjectURL(blob);
+            const img = new Image();
+            img.onload = () => {
+              ctx.drawImage(img, 0, 0, w, h);
+              URL.revokeObjectURL(url);
+              const base64 = c.toDataURL("image/png").split(",")[1];
+              send({kind:"screenshot_response", url: id, msg: base64});
+            };
+            img.onerror = () => {
+              URL.revokeObjectURL(url);
+              send({kind:"screenshot_response", url: id, msg: ""});
+            };
+            img.src = url;
+          } catch (_) {
+            send({kind:"screenshot_response", url: id, msg: ""});
+          }
+        })();
+      }
     };
     ws.onclose = () => {
       clearTimeout(t);

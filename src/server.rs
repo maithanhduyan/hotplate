@@ -44,6 +44,8 @@ pub struct AppState {
     pub http_client: reqwest::Client,
     pub event_logger: EventLogger,
     pub client_counter: Arc<AtomicU64>,
+    /// Channel for browser → MCP screenshot responses (id, base64 data)
+    pub screenshot_tx: tokio::sync::mpsc::UnboundedSender<(String, String)>,
 }
 
 // ───────────────────── WebSocket handler ─────────────────────
@@ -61,25 +63,33 @@ async fn handle_socket(mut socket: WebSocket, state: Arc<AppState>) {
 
     loop {
         tokio::select! {
-            // Server → Browser: reload commands
+            // Server → Browser: reload / inject / screenshot commands
             result = rx.recv() => {
                 let Ok(changed_path) = result else { break };
 
-                let reload_type = if !state.full_reload && is_css_file(&changed_path) {
-                    "css"
+                // Inject and screenshot messages are forwarded as-is to the browser
+                let msg = if changed_path.starts_with("inject:") || changed_path.starts_with("screenshot:") {
+                    changed_path
                 } else {
-                    "full"
-                };
-                let msg = if reload_type == "css" {
-                    format!("css:{}", changed_path)
-                } else {
-                    "reload".to_string()
-                };
+                    // File-change reload logic
+                    let reload_type = if !state.full_reload && is_css_file(&changed_path) {
+                        "css"
+                    } else {
+                        "full"
+                    };
+                    let formatted = if reload_type == "css" {
+                        format!("css:{}", changed_path)
+                    } else {
+                        "reload".to_string()
+                    };
 
-                state.event_logger.log(EventData::ReloadTrigger {
-                    path: changed_path,
-                    reload_type: reload_type.to_string(),
-                });
+                    state.event_logger.log(EventData::ReloadTrigger {
+                        path: changed_path,
+                        reload_type: reload_type.to_string(),
+                    });
+
+                    formatted
+                };
 
                 if socket.send(Message::Text(msg)).await.is_err() {
                     break;
@@ -169,6 +179,11 @@ fn handle_browser_message(text: &str, client_id: &str, state: &Arc<AppState>) {
                 status: m.status,
                 error: m.error,
             });
+        }
+        "screenshot_response" => {
+            // Browser sends: {kind:"screenshot_response", id:"...", data:"base64..."}
+            // Route to MCP tool via mpsc channel
+            let _ = state.screenshot_tx.send((m.url, m.msg));
         }
         _ => {} // unknown kind — silently skip
     }
@@ -460,8 +475,26 @@ fn local_ip_addresses() -> Result<Vec<String>> {
 /// Maximum number of port increments to try when the port is already in use.
 const MAX_PORT_RETRIES: u16 = 20;
 
-pub async fn run(mut config: Config) -> Result<()> {
-    let (reload_tx, _) = broadcast::channel::<String>(16);
+/// Optional channels that can be pre-created by the MCP layer so it shares
+/// the same broadcast/screenshot channels as the running server.
+pub struct ExternalChannels {
+    pub reload_tx: broadcast::Sender<String>,
+    pub screenshot_tx: tokio::sync::mpsc::UnboundedSender<(String, String)>,
+}
+
+/// Start the HTTP/HTTPS server.
+///
+/// If `ext` is `Some`, uses the pre-created channels (MCP mode).
+/// Otherwise creates fresh ones (standalone mode).
+pub async fn run(mut config: Config, ext: Option<ExternalChannels>) -> Result<()> {
+    let (reload_tx, screenshot_tx) = match ext {
+        Some(e) => (e.reload_tx, e.screenshot_tx),
+        None => {
+            let (rtx, _) = broadcast::channel::<String>(16);
+            let (stx, _) = tokio::sync::mpsc::unbounded_channel::<(String, String)>();
+            (rtx, stx)
+        }
+    };
 
     // Event logger (JSONL)
     let event_logger = if config.event_log {
@@ -485,6 +518,7 @@ pub async fn run(mut config: Config) -> Result<()> {
         http_client,
         event_logger: event_logger.clone(),
         client_counter: Arc::new(AtomicU64::new(0)),
+        screenshot_tx,
     });
 
     // Log server start event

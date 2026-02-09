@@ -15,6 +15,7 @@
 //! Future: SSE transport can be added alongside stdio.
 
 use crate::jsonrpc::{JsonRpcError, JsonRpcRequest, JsonRpcResponse};
+use crate::server::ExternalChannels;
 use crate::Config;
 
 use serde::Serialize;
@@ -23,6 +24,7 @@ use std::collections::HashMap;
 use std::io::{self, BufRead, BufReader, BufWriter, Write};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::broadcast;
 
 /// Result type for MCP operations.
@@ -51,7 +53,7 @@ pub trait Tool: Send + Sync {
 pub struct HotplateState {
     /// Whether the HTTP server is currently running.
     pub running: Arc<AtomicBool>,
-    /// Broadcast channel to trigger browser reloads.
+    /// Broadcast channel to trigger browser reloads / inject / screenshot commands.
     pub reload_tx: Option<broadcast::Sender<String>>,
     /// Current server config (set after `hotplate_start`).
     pub config: Option<Config>,
@@ -59,6 +61,8 @@ pub struct HotplateState {
     pub rt_handle: tokio::runtime::Handle,
     /// Server task handle (so we can abort on `hotplate_stop`).
     pub server_handle: Option<tokio::task::JoinHandle<()>>,
+    /// Receiver for screenshot responses from the browser (id, base64).
+    pub screenshot_rx: Option<Arc<tokio::sync::Mutex<tokio::sync::mpsc::UnboundedReceiver<(String, String)>>>>,
 }
 
 // ───────────────────── McpServer ─────────────────────
@@ -297,8 +301,15 @@ impl Tool for StartTool {
             (None, None)
         };
 
-        let reload_tx = broadcast::channel::<String>(16).0;
+        let (reload_tx, _) = broadcast::channel::<String>(16);
+        let (screenshot_tx, screenshot_rx) = tokio::sync::mpsc::unbounded_channel::<(String, String)>();
         st.reload_tx = Some(reload_tx.clone());
+        st.screenshot_rx = Some(Arc::new(tokio::sync::Mutex::new(screenshot_rx)));
+
+        let ext = ExternalChannels {
+            reload_tx: reload_tx.clone(),
+            screenshot_tx,
+        };
 
         let config = Config {
             host: "0.0.0.0".into(),
@@ -328,7 +339,7 @@ impl Tool for StartTool {
         running.store(true, Ordering::Relaxed);
 
         let handle = st.rt_handle.spawn(async move {
-            if let Err(e) = crate::server::run(config).await {
+            if let Err(e) = crate::server::run(config, Some(ext)).await {
                 eprintln!("[hotplate-mcp] Server error: {e}");
             }
             running.store(false, Ordering::Relaxed);
@@ -371,6 +382,7 @@ impl Tool for StopTool {
         st.running.store(false, Ordering::Relaxed);
         st.config = None;
         st.reload_tx = None;
+        st.screenshot_rx = None;
 
         Ok(text_response("Server stopped.".into()))
     }
@@ -423,6 +435,171 @@ impl Tool for ReloadTool {
     }
 }
 
+// ───────────────────── hotplate_inject ─────────────────────
+
+struct InjectTool {
+    state: Arc<std::sync::Mutex<HotplateState>>,
+}
+
+impl Tool for InjectTool {
+    fn definition(&self) -> McpTool {
+        McpTool {
+            name: "hotplate_inject".into(),
+            description: "Inject custom script/CSS into all connected pages.".into(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "code": {
+                        "type": "string",
+                        "description": "The JavaScript or CSS code to inject."
+                    },
+                    "type": {
+                        "type": "string",
+                        "enum": ["js", "css"],
+                        "description": "Type of code to inject: 'js' or 'css'."
+                    }
+                },
+                "required": ["code", "type"]
+            }),
+        }
+    }
+
+    fn execute(&self, params: Value) -> McpResult<Value> {
+        let st = self.state.lock().map_err(|e| format!("Lock: {e}"))?;
+
+        if !st.running.load(Ordering::Relaxed) {
+            return Ok(text_response("Server is not running.".into()));
+        }
+
+        let code = params.get("code")
+            .and_then(|v| v.as_str())
+            .ok_or("Missing 'code' parameter")?;
+        let inject_type = params.get("type")
+            .and_then(|v| v.as_str())
+            .ok_or("Missing 'type' parameter")?;
+
+        let msg = match inject_type {
+            "js"  => format!("inject:js:{code}"),
+            "css" => format!("inject:css:{code}"),
+            other => return Ok(text_response(
+                format!("Unknown inject type '{other}'. Use 'js' or 'css'."))),
+        };
+
+        match st.reload_tx {
+            Some(ref tx) => match tx.send(msg) {
+                Ok(n) => Ok(text_response(
+                    format!("Injected {inject_type} into {n} browser(s)."))),
+                Err(_) => Ok(text_response("Inject sent but no browsers connected.".into())),
+            },
+            None => Ok(text_response("No reload channel available.".into())),
+        }
+    }
+}
+
+// ───────────────────── hotplate_screenshot ─────────────────────
+
+struct ScreenshotTool {
+    state: Arc<std::sync::Mutex<HotplateState>>,
+}
+
+impl Tool for ScreenshotTool {
+    fn definition(&self) -> McpTool {
+        McpTool {
+            name: "hotplate_screenshot".into(),
+            description: "Take a screenshot of the page from a connected browser.".into(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "viewport": {
+                        "type": "object",
+                        "description": "Viewport dimensions for the screenshot.",
+                        "properties": {
+                            "width":  { "type": "number", "description": "Width in pixels (default: browser width)" },
+                            "height": { "type": "number", "description": "Height in pixels (default: browser height)" }
+                        }
+                    }
+                },
+                "required": []
+            }),
+        }
+    }
+
+    fn execute(&self, params: Value) -> McpResult<Value> {
+        let st = self.state.lock().map_err(|e| format!("Lock: {e}"))?;
+
+        if !st.running.load(Ordering::Relaxed) {
+            return Ok(text_response("Server is not running.".into()));
+        }
+
+        let width = params.get("viewport")
+            .and_then(|v| v.get("width"))
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0);
+        let height = params.get("viewport")
+            .and_then(|v| v.get("height"))
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0);
+
+        let request_id = format!("ss_{}", std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis());
+
+        // Send screenshot request to browser: "screenshot:{id}:{w}x{h}"
+        let msg = format!("screenshot:{}:{}x{}", request_id, width, height);
+        let tx = match st.reload_tx {
+            Some(ref tx) => tx.clone(),
+            None => return Ok(text_response("No reload channel available.".into())),
+        };
+        match tx.send(msg) {
+            Ok(0) | Err(_) => {
+                return Ok(text_response("No browsers connected to take a screenshot.".into()));
+            }
+            _ => {}
+        }
+
+        // Get screenshot_rx and rt_handle to wait for response
+        let screenshot_rx = match st.screenshot_rx {
+            Some(ref rx) => rx.clone(),
+            None => return Ok(text_response("Screenshot channel not available.".into())),
+        };
+        let rt_handle = st.rt_handle.clone();
+        let rid = request_id.clone();
+
+        // Drop the lock before blocking wait
+        drop(st);
+
+        // Wait for the browser response with a timeout
+        let result = rt_handle.block_on(async {
+            let mut rx = screenshot_rx.lock().await;
+            tokio::time::timeout(Duration::from_secs(10), async {
+                // Drain messages looking for our request_id
+                while let Some((id, data)) = rx.recv().await {
+                    if id == rid {
+                        return Some(data);
+                    }
+                    // Not our response — skip (could be from a different request)
+                }
+                None
+            }).await
+        });
+
+        match result {
+            Ok(Some(base64_data)) if !base64_data.is_empty() => {
+                Ok(json!({
+                    "content": [{
+                        "type": "image",
+                        "data": base64_data,
+                        "mimeType": "image/png"
+                    }]
+                }))
+            }
+            Ok(_) => Ok(text_response("Screenshot capture failed (empty response from browser).".into())),
+            Err(_) => Ok(text_response("Screenshot timed out after 10s. Is a browser page open?".into())),
+        }
+    }
+}
+
 // ───────────────────── Entry point ─────────────────────
 
 /// Run Hotplate in MCP stdio mode.
@@ -438,15 +615,18 @@ pub fn run_mcp() -> McpResult<()> {
         config: None,
         rt_handle: rt.handle().clone(),
         server_handle: None,
+        screenshot_rx: None,
     }));
 
     let mut server = McpServer::new();
-    server.register_tool(Box::new(StatusTool { state: state.clone() }));
-    server.register_tool(Box::new(StartTool  { state: state.clone() }));
-    server.register_tool(Box::new(StopTool   { state: state.clone() }));
-    server.register_tool(Box::new(ReloadTool { state: state.clone() }));
+    server.register_tool(Box::new(StatusTool     { state: state.clone() }));
+    server.register_tool(Box::new(StartTool      { state: state.clone() }));
+    server.register_tool(Box::new(StopTool       { state: state.clone() }));
+    server.register_tool(Box::new(ReloadTool     { state: state.clone() }));
+    server.register_tool(Box::new(InjectTool     { state: state.clone() }));
+    server.register_tool(Box::new(ScreenshotTool { state: state.clone() }));
 
-    eprintln!("[hotplate-mcp] ready — 4 tools registered, waiting for JSON-RPC on stdin…");
+    eprintln!("[hotplate-mcp] ready — 6 tools registered, waiting for JSON-RPC on stdin…");
 
     server.run()
 }
