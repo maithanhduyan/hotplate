@@ -441,6 +441,45 @@ function updateStatusBar(running, port) {
     }
 }
 
+// ────────────────────── MCP Server Registration ──────────────────────
+
+/**
+ * Register Hotplate as an MCP server so AI agents (Copilot, Claude, etc.)
+ * can discover it automatically — no manual mcp.json configuration needed.
+ *
+ * Uses the bundled binary path (same as getBinaryPath) with `--mcp` flag.
+ * Works on all platforms (Windows/macOS/Linux) and all architectures.
+ *
+ * @param {vscode.ExtensionContext} context
+ */
+function registerMcpServer(context) {
+    // Guard: vscode.lm.registerMcpServerDefinitionProvider may not exist
+    // on older VS Code versions that don't support the MCP API.
+    if (!vscode.lm || typeof vscode.lm.registerMcpServerDefinitionProvider !== 'function') {
+        return;
+    }
+
+    const binaryPath = getBinaryPath(context);
+
+    const provider = {
+        provideMcpServerDefinitions(_token) {
+            return [
+                new vscode.McpStdioServerDefinition(
+                    'Hotplate',       // label
+                    binaryPath,       // command
+                    ['--mcp'],        // args
+                    undefined,        // env
+                    context.extension.packageJSON.version // version
+                ),
+            ];
+        },
+    };
+
+    context.subscriptions.push(
+        vscode.lm.registerMcpServerDefinitionProvider('hotplate-mcp', provider)
+    );
+}
+
 // ────────────────────── Activation ──────────────────────
 
 /**
@@ -578,6 +617,9 @@ function activate(context) {
 
     // Set initial context
     vscode.commands.executeCommand('setContext', 'hotplate:running', false);
+
+    // Register MCP server for AI agent auto-discovery
+    registerMcpServer(context);
 }
 
 /**

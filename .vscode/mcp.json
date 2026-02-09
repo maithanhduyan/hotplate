@@ -1,5 +1,20 @@
 {
+    // ⚠ DEV-ONLY configuration — DO NOT use in production!
+    //
+    // If you installed the Hotplate extension from VS Code Marketplace,
+    // the MCP server is auto-registered — no configuration needed.
+    // Just enable it in: Chat → Select Tools → Hotplate.
+    //
+    // This file is only for local development (cloned repo).
+    // The versioned binary (v7, v8...) is used to avoid file lock conflicts
+    // when the MCP process holds the binary.
     "servers": {
+        // "hotplate": {
+        //     "command": "${workspaceFolder}/vscode-extension/bin/hotplate-win32-x64-v7.exe",
+        //     "args": [
+        //         "--mcp"
+        //     ]
+        // },
         "playwright": {
             "command": "npx",
             "args": [

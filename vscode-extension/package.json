@@ -15,7 +15,7 @@
     "url": "https://github.com/maithanhduyan/hotplate"
   },
   "engines": {
-    "vscode": "^1.85.0"
+    "vscode": "^1.99.0"
   },
   "icon": "images/icon.png",
   "categories": [
@@ -37,6 +37,12 @@
   ],
   "main": "./extension.js",
   "contributes": {
+    "mcpServerDefinitionProviders": [
+      {
+        "id": "hotplate-mcp",
+        "label": "Hotplate MCP Server"
+      }
+    ],
     "commands": [
       {
         "command": "hotplate.start",
