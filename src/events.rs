@@ -179,7 +179,7 @@ pub struct EventLogger {
 }
 
 impl EventLogger {
-    /// Create a new EventLogger that writes to `.hotplate/events-{session}.jsonl`
+    /// Create a new EventLogger that writes to `.hotplate/logs/events-{session}.jsonl`
     /// in the given workspace directory.
     ///
     /// Spawns a background tokio task for non-blocking writes.
@@ -187,7 +187,7 @@ impl EventLogger {
         let session = generate_session_id();
         let (tx, rx) = mpsc::unbounded_channel();
 
-        let log_dir = workspace.join(".hotplate");
+        let log_dir = workspace.join(".hotplate").join("logs");
         let log_file = log_dir.join(format!("events-{}.jsonl", session));
 
         // Spawn writer task
@@ -239,7 +239,7 @@ impl EventLogger {
             }
         };
 
-        println!("  📋 Events:  .hotplate/events-{}.jsonl", session);
+        println!("  📋 Events:  .hotplate/logs/events-{}.jsonl", session);
 
         // Write events as they arrive
         while let Some(event) = rx.recv().await {

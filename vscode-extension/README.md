@@ -54,8 +54,8 @@ Or use Command Palette: `Ctrl+Shift+P` → `Hotplate: Start Server`
 {
   "hotplate.port": 5500,
   "hotplate.root": "apps",
-  "hotplate.https.cert": ".cert/server.crt",
-  "hotplate.https.key": ".cert/server.key"
+  "hotplate.https.cert": ".hotplate/certs/server.crt",
+  "hotplate.https.key": ".hotplate/certs/server.key"
 }
 ```
 

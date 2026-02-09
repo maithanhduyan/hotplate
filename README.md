@@ -61,7 +61,7 @@ hotplate
 hotplate --root ./apps --port 5500
 
 # With HTTPS
-hotplate --root ./apps --cert .cert/server.crt --key .cert/server.key
+hotplate --root ./apps --cert .hotplate/certs/server.crt --key .hotplate/certs/server.key
 
 # SPA mode (React/Vue/Angular)
 hotplate --root ./dist --file index.html
@@ -125,8 +125,8 @@ Hotplate reads settings from `.vscode/settings.json` (JSONC supported):
     "hotplate.root": "",
 
     // HTTPS
-    "hotplate.https.cert": ".cert/server.crt",
-    "hotplate.https.key": ".cert/server.key",
+    "hotplate.https.cert": ".hotplate/certs/server.crt",
+    "hotplate.https.key": ".hotplate/certs/server.key",
 
     // Live Reload
     "hotplate.liveReload": true,

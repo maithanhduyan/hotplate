@@ -145,7 +145,7 @@
         "hotplate.https.enable": {
           "type": "boolean",
           "default": false,
-          "description": "Enable HTTPS. If cert/key are not provided, a self-signed certificate will be auto-generated in .cert/ directory."
+          "description": "Enable HTTPS. If cert/key are not provided, a self-signed certificate will be auto-generated in .hotplate/certs/ directory."
         },
         "hotplate.https.cert": {
           "type": "string",

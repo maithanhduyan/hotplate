@@ -47,7 +47,7 @@ Thay vì fork một extension JavaScript cũ (last commit 2021), chúng tôi quy
 liveserver --workspace .
 
 # Hoặc chỉ định trực tiếp
-liveserver --cert .cert/server.crt --key .cert/server.key
+liveserver --cert .hotplate/certs/server.crt --key .hotplate/certs/server.key
 ```
 
 - Resolve đường dẫn tương đối so với workspace root
@@ -66,7 +66,7 @@ Tự viết parser strip comment (`//`, `/* */`) và trailing comma trước khi
     // ← line comment OK
     "liveServer.settings.https": {
         "enable": true,
-        "cert": "./.cert/server.crt",  /* ← relative path OK */
+        "cert": "./.hotplate/certs/server.crt",  /* ← relative path OK */
     }
 }
 ```

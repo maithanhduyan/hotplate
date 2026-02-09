@@ -37,7 +37,7 @@ Cải thiện trải nghiệm lập trình viên hàng ngày:
 - [x] **Full reload flag** — `--full-reload` disable CSS hot swap, luôn reload toàn trang
 - [x] **Watch extensions** — mặc định chỉ watch file UI (html, css, js, ts...), `--watch-ext` hoặc `hotplate.watchExtensions` để tùy chỉnh, `"*"` để watch tất cả
 - [x] **Cache control** — `Cache-Control: no-cache` mặc định cho dev (browser revalidate, 304 vẫn hoạt động)
-- [x] **Event sourcing** — JSONL event log (`.hotplate/events-*.jsonl`) ghi mọi hoạt động: file change, reload, HTTP request, JS error, console, network error. Browser agent bidirectional WebSocket. `--no-event-log` để tắt.
+- [x] **Event sourcing** — JSONL event log (`.hotplate/logs/events-*.jsonl`) ghi mọi hoạt động: file change, reload, HTTP request, JS error, console, network error. Browser agent bidirectional WebSocket. `--no-event-log` để tắt.
 - [ ] **QR Code** — hiển thị QR code trong terminal cho mobile truy cập nhanh
 - [ ] **Gzip/Brotli** — nén response tự động (opt-in, không cần cho localhost)
 - [ ] **Error overlay** — hiển thị lỗi build đẹp trên browser (như Vite)

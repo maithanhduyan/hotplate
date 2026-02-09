@@ -2,8 +2,8 @@
 //!
 //! Usage:
 //!   hotplate --root ./apps --port 5500
-//!   hotplate --https                   # auto-generates self-signed cert in .cert/
-//!   hotplate --root ./apps --cert .cert/server.crt --key .cert/server.key
+//!   hotplate --https                   # auto-generates self-signed cert in .hotplate/certs/
+//!   hotplate --root ./apps --cert .hotplate/certs/server.crt --key .hotplate/certs/server.key
 //!   hotplate                          # auto-reads .vscode/settings.json
 
 mod events;
@@ -86,7 +86,7 @@ struct Cli {
     #[arg(long = "watch-ext")]
     watch_extensions: Vec<String>,
 
-    /// Disable event logging (no .hotplate/events-*.jsonl files)
+    /// Disable event logging (no .hotplate/logs/events-*.jsonl files)
     #[arg(long, default_value_t = false)]
     no_event_log: bool,
 }
@@ -244,21 +244,36 @@ fn resolve_path(workspace: &Path, p: &str) -> PathBuf {
     }
 }
 
-/// Generate a self-signed TLS certificate and key in `<workspace>/.cert/`.
+/// Generate a self-signed TLS certificate and key in `<workspace>/.hotplate/certs/`.
 /// Returns the paths to the generated cert and key files.
 /// If the files already exist, they are reused without regeneration.
+/// Also migrates old `.cert/` directory layout if found.
 fn generate_self_signed_cert(workspace: &Path) -> Result<(PathBuf, PathBuf)> {
-    let cert_dir = workspace.join(".cert");
+    let cert_dir = workspace.join(".hotplate").join("certs");
     let cert_path = cert_dir.join("hotplate.crt");
     let key_path = cert_dir.join("hotplate.key");
 
+    // Migrate from old .cert/ layout → .hotplate/certs/
+    let old_cert_dir = workspace.join(".cert");
+    let old_cert = old_cert_dir.join("hotplate.crt");
+    let old_key = old_cert_dir.join("hotplate.key");
+    if old_cert.exists() && old_key.exists() && !cert_path.exists() {
+        std::fs::create_dir_all(&cert_dir)
+            .with_context(|| format!("Failed to create directory: {}", cert_dir.display()))?;
+        std::fs::rename(&old_cert, &cert_path).ok();
+        std::fs::rename(&old_key, &key_path).ok();
+        // Remove old directory if empty
+        let _ = std::fs::remove_dir(&old_cert_dir);
+        println!("  🔄 Migrated certs from .cert/ → .hotplate/certs/");
+    }
+
     // Reuse existing certs if they exist
     if cert_path.exists() && key_path.exists() {
-        println!("  🔒 Reusing existing self-signed cert at .cert/");
+        println!("  🔒 Reusing existing self-signed cert at .hotplate/certs/");
         return Ok((cert_path, key_path));
     }
 
-    // Create .cert directory
+    // Create .hotplate/certs directory
     std::fs::create_dir_all(&cert_dir)
         .with_context(|| format!("Failed to create directory: {}", cert_dir.display()))?;
 
@@ -296,7 +311,7 @@ fn generate_self_signed_cert(workspace: &Path) -> Result<(PathBuf, PathBuf)> {
     std::fs::write(&key_path, key_pair.serialize_pem())
         .with_context(|| format!("Failed to write key: {}", key_path.display()))?;
 
-    println!("  🔒 Generated self-signed certificate:");
+    println!("  🔒 Generated self-signed certificate in .hotplate/certs/:");
     println!("     📄 {}", cert_path.display());
     println!("     🔑 {}", key_path.display());
 
