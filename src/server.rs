@@ -31,6 +31,32 @@ use tower_http::{
 /// Built-in welcome page shown when root directory has no index.html.
 const WELCOME_HTML: &str = include_str!("welcome.html");
 
+/// Max number of console entries kept in memory for the MCP `hotplate_console` tool.
+const MAX_CONSOLE_ENTRIES: usize = 500;
+
+// ───────────────────── Console log buffer ─────────────────────
+
+/// A single console/error entry captured from the browser.
+#[derive(Clone, Debug, serde::Serialize)]
+pub struct ConsoleEntry {
+    /// "log" | "warn" | "error" | "js_error"
+    pub level: String,
+    pub message: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub line: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub col: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stack: Option<String>,
+    /// ISO-8601 timestamp
+    pub timestamp: String,
+}
+
+/// Thread-safe console log buffer shared between server and MCP.
+pub type ConsoleLogBuffer = Arc<std::sync::Mutex<Vec<ConsoleEntry>>>;
+
 // ───────────────────── Shared state ─────────────────────
 
 #[derive(Clone)]
@@ -46,6 +72,8 @@ pub struct AppState {
     pub client_counter: Arc<AtomicU64>,
     /// Channel for browser → MCP screenshot responses (id, base64 data)
     pub screenshot_tx: tokio::sync::mpsc::UnboundedSender<(String, String)>,
+    /// In-memory buffer of recent console logs from connected browsers.
+    pub console_logs: ConsoleLogBuffer,
 }
 
 // ───────────────────── WebSocket handler ─────────────────────
@@ -159,17 +187,35 @@ fn handle_browser_message(text: &str, client_id: &str, state: &Arc<AppState>) {
         }
         "js_error" => {
             state.event_logger.log(EventData::JsError {
-                message: m.msg,
-                source: m.src,
+                message: m.msg.clone(),
+                source: m.src.clone(),
                 line: m.line,
                 col: m.col,
-                stack: m.stack,
+                stack: m.stack.clone(),
+            });
+            push_console_entry(&state.console_logs, ConsoleEntry {
+                level: "js_error".into(),
+                message: m.msg,
+                source: Some(m.src).filter(|s| !s.is_empty()),
+                line: if m.line > 0 { Some(m.line) } else { None },
+                col: if m.col > 0 { Some(m.col) } else { None },
+                stack: Some(m.stack).filter(|s| !s.is_empty()),
+                timestamp: now_iso(),
             });
         }
         "console" => {
             state.event_logger.log(EventData::ConsoleLog {
+                level: m.level.clone(),
+                message: m.msg.clone(),
+            });
+            push_console_entry(&state.console_logs, ConsoleEntry {
                 level: m.level,
                 message: m.msg,
+                source: None,
+                line: None,
+                col: None,
+                stack: None,
+                timestamp: now_iso(),
             });
         }
         "net_error" => {
@@ -193,6 +239,30 @@ fn handle_browser_message(text: &str, client_id: &str, state: &Arc<AppState>) {
 fn is_css_file(path: &str) -> bool {
     let lower = path.to_lowercase();
     lower.ends_with(".css")
+}
+
+/// Push a console entry, capping at MAX_CONSOLE_ENTRIES.
+fn push_console_entry(buf: &ConsoleLogBuffer, entry: ConsoleEntry) {
+    if let Ok(mut logs) = buf.lock() {
+        if logs.len() >= MAX_CONSOLE_ENTRIES {
+            let half = logs.len() / 2;
+            logs.drain(..half); // keep recent half
+        }
+        logs.push(entry);
+    }
+}
+
+/// Current time as ISO-8601 string (UTC-ish, good enough for logs).
+fn now_iso() -> String {
+    let d = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default();
+    let secs = d.as_secs();
+    let h = (secs / 3600) % 24;
+    let m = (secs / 60) % 60;
+    let s = secs % 60;
+    let ms = d.subsec_millis();
+    format!("{:02}:{:02}:{:02}.{:03}", h, m, s, ms)
 }
 
 // ───────────────────── Build router ─────────────────────
@@ -480,6 +550,7 @@ const MAX_PORT_RETRIES: u16 = 20;
 pub struct ExternalChannels {
     pub reload_tx: broadcast::Sender<String>,
     pub screenshot_tx: tokio::sync::mpsc::UnboundedSender<(String, String)>,
+    pub console_logs: ConsoleLogBuffer,
 }
 
 /// Start the HTTP/HTTPS server.
@@ -487,12 +558,13 @@ pub struct ExternalChannels {
 /// If `ext` is `Some`, uses the pre-created channels (MCP mode).
 /// Otherwise creates fresh ones (standalone mode).
 pub async fn run(mut config: Config, ext: Option<ExternalChannels>) -> Result<()> {
-    let (reload_tx, screenshot_tx) = match ext {
-        Some(e) => (e.reload_tx, e.screenshot_tx),
+    let (reload_tx, screenshot_tx, console_logs) = match ext {
+        Some(e) => (e.reload_tx, e.screenshot_tx, e.console_logs),
         None => {
             let (rtx, _) = broadcast::channel::<String>(16);
             let (stx, _) = tokio::sync::mpsc::unbounded_channel::<(String, String)>();
-            (rtx, stx)
+            let clogs = Arc::new(std::sync::Mutex::new(Vec::new()));
+            (rtx, stx, clogs)
         }
     };
 
@@ -519,6 +591,7 @@ pub async fn run(mut config: Config, ext: Option<ExternalChannels>) -> Result<()
         event_logger: event_logger.clone(),
         client_counter: Arc::new(AtomicU64::new(0)),
         screenshot_tx,
+        console_logs,
     });
 
     // Log server start event

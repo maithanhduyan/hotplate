@@ -63,6 +63,8 @@ pub struct HotplateState {
     pub server_handle: Option<tokio::task::JoinHandle<()>>,
     /// Receiver for screenshot responses from the browser (id, base64).
     pub screenshot_rx: Option<Arc<tokio::sync::Mutex<tokio::sync::mpsc::UnboundedReceiver<(String, String)>>>>,
+    /// Shared in-memory buffer of browser console logs.
+    pub console_logs: Option<crate::server::ConsoleLogBuffer>,
 }
 
 // ───────────────────── McpServer ─────────────────────
@@ -303,12 +305,15 @@ impl Tool for StartTool {
 
         let (reload_tx, _) = broadcast::channel::<String>(16);
         let (screenshot_tx, screenshot_rx) = tokio::sync::mpsc::unbounded_channel::<(String, String)>();
+        let console_logs: crate::server::ConsoleLogBuffer = Arc::new(std::sync::Mutex::new(Vec::new()));
         st.reload_tx = Some(reload_tx.clone());
         st.screenshot_rx = Some(Arc::new(tokio::sync::Mutex::new(screenshot_rx)));
+        st.console_logs = Some(console_logs.clone());
 
         let ext = ExternalChannels {
             reload_tx: reload_tx.clone(),
             screenshot_tx,
+            console_logs,
         };
 
         let config = Config {
@@ -383,6 +388,7 @@ impl Tool for StopTool {
         st.config = None;
         st.reload_tx = None;
         st.screenshot_rx = None;
+        st.console_logs = None;
 
         Ok(text_response("Server stopped.".into()))
     }
@@ -432,6 +438,80 @@ impl Tool for ReloadTool {
             },
             None => Ok(text_response("No reload channel (live reload may be off).".into())),
         }
+    }
+}
+
+// ───────────────────── hotplate_console ─────────────────────
+
+struct ConsoleTool {
+    state: Arc<std::sync::Mutex<HotplateState>>,
+}
+
+impl Tool for ConsoleTool {
+    fn definition(&self) -> McpTool {
+        McpTool {
+            name: "hotplate_console".into(),
+            description: "Get browser console logs from connected clients.".into(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "level": {
+                        "type": "string",
+                        "enum": ["all", "warn", "error", "js_error"],
+                        "description": "Filter by log level. Default: 'all'."
+                    },
+                    "clear": {
+                        "type": "boolean",
+                        "description": "Clear the log buffer after reading. Default: false."
+                    }
+                },
+                "required": []
+            }),
+        }
+    }
+
+    fn execute(&self, params: Value) -> McpResult<Value> {
+        let st = self.state.lock().map_err(|e| format!("Lock: {e}"))?;
+
+        if !st.running.load(Ordering::Relaxed) {
+            return Ok(text_response("Server is not running.".into()));
+        }
+
+        let console_logs = match st.console_logs {
+            Some(ref buf) => buf.clone(),
+            None => return Ok(text_response("Console log buffer not available.".into())),
+        };
+
+        // Drop HotplateState lock before locking console buffer
+        drop(st);
+
+        let level_filter = params.get("level")
+            .and_then(|v| v.as_str())
+            .unwrap_or("all");
+        let clear = params.get("clear")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+
+        let mut buf = console_logs.lock().map_err(|e| format!("Lock: {e}"))?;
+
+        let entries: Vec<&crate::server::ConsoleEntry> = if level_filter == "all" {
+            buf.iter().collect()
+        } else {
+            buf.iter().filter(|e| e.level == level_filter).collect()
+        };
+
+        let result = json!({
+            "total": entries.len(),
+            "logs": entries
+        });
+
+        let text = serde_json::to_string_pretty(&result)?;
+
+        if clear {
+            buf.clear();
+        }
+
+        Ok(text_response(text))
     }
 }
 
@@ -616,6 +696,7 @@ pub fn run_mcp() -> McpResult<()> {
         rt_handle: rt.handle().clone(),
         server_handle: None,
         screenshot_rx: None,
+        console_logs: None,
     }));
 
     let mut server = McpServer::new();
@@ -625,8 +706,9 @@ pub fn run_mcp() -> McpResult<()> {
     server.register_tool(Box::new(ReloadTool     { state: state.clone() }));
     server.register_tool(Box::new(InjectTool     { state: state.clone() }));
     server.register_tool(Box::new(ScreenshotTool { state: state.clone() }));
+    server.register_tool(Box::new(ConsoleTool    { state: state.clone() }));
 
-    eprintln!("[hotplate-mcp] ready — 6 tools registered, waiting for JSON-RPC on stdin…");
+    eprintln!("[hotplate-mcp] ready — 7 tools registered, waiting for JSON-RPC on stdin…");
 
     server.run()
 }
