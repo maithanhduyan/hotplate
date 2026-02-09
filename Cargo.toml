@@ -1,6 +1,6 @@
 [package]
 name = "hotplate"
-version = "0.1.3"
+version = "0.2.0"
 edition = "2021"
 description = "⚡ Fast HTTPS live-reload development server written in Rust"
 

@@ -2,7 +2,7 @@
   "name": "hotplate",
   "displayName": "Hotplate — Live Server",
   "description": "⚡ Fast HTTPS live-reload dev server powered by Rust. Hot reload, zero config, LAN access with QR code.",
-  "version": "0.1.3",
+  "version": "0.2.0",
   "publisher": "maithanhduyan",
   "author": {
     "name": "Mai Thành Duy An",

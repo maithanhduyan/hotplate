@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.2.0 — MCP Auto-Discovery & DOM Query (2026-02-09)
+
+### Added
+- 🤖 **MCP Auto-Discovery** — Extension auto-registers Hotplate as an MCP server via `vscode.lm.registerMcpServerDefinitionProvider()`, enabling automatic discovery by AI agents (Copilot, Claude, etc.)
+- 🔍 **DOM Query** — New `hotplate_dom` MCP tool to query DOM elements using CSS selectors
+- 🧰 **11 MCP Tools** — Complete suite: start, stop, status, reload, inject, screenshot, console, network, server_logs, dom, eval
+
+### Changed
+- ⬆️ Minimum VS Code version bumped to `^1.99.0` (required for MCP server definition provider API)
+
 ## 0.1.3 — MCP Server (2026-02-09)
 
 ### Added
